@@ -81,7 +81,7 @@ int crypto_kem_keypair(unsigned char *pk, unsigned char *sk)
     mlwq_pk pk_s;
     mlwq_kem_sk sk_s;
 
-    /* Generate key pair; ref_mlwq_kem_keygen computes h_pk = SHA3-256(packed pk)
+    /* Generate key pair; ref_mlwq_kem_keygen computes h_pk = SHAKE128(packed pk)
      * and stores z, so no additional overrides are needed here. */
     ref_mlwq_kem_keygen(&pk_s, &sk_s);
 
@@ -108,7 +108,7 @@ int crypto_kem_enc(unsigned char *ct, unsigned char *ss,
 
     /* H(pk) over the packed public key bytes */
     uint8_t h_pk[HASHBYTES];
-    sha3_256(h_pk, pk, MLWQ_PUBLICKEYBYTES);
+    shake128(h_pk, HASHBYTES, pk, MLWQ_PUBLICKEYBYTES);
 
     /* Derive shared secret and encryption randomness: kr = SHAKE128(m || H(pk)) */
     uint8_t buf[64];

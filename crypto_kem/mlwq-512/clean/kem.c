@@ -81,15 +81,12 @@ int crypto_kem_keypair(unsigned char *pk, unsigned char *sk)
     mlwq_pk pk_s;
     mlwq_kem_sk sk_s;
 
-    /* Generate key pair */
+    /* Generate key pair; ref_mlwq_kem_keygen computes h_pk = SHA3-256(packed pk)
+     * and stores z, so no additional overrides are needed here. */
     ref_mlwq_kem_keygen(&pk_s, &sk_s);
 
     /* Pack public key */
     pack_pk(pk, &pk_s);
-
-    /* Recompute H(pk) over the packed representation so that it is
-     * consistent with what crypto_kem_enc will compute. */
-    sha3_256(sk_s.h_pk, pk, MLWQ_PUBLICKEYBYTES);
 
     /* Pack secret key: s || pk || H(pk) || z */
     pack_sk(sk, &sk_s, pk);

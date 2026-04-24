@@ -175,13 +175,18 @@ void ref_mlwq_kem_keygen(mlwq_pk *pk, mlwq_kem_sk *sk) {
     random_bytes(seed_A, 32);
     random_bytes(seed_d, 32);
 
-    // memset(seed_A,0,32);
-    // memset(seed_d,0,32);
-
     ref_mlwq_keygen(pk, &sk->pke_sk, seed_A, seed_d);
-    
-    sk->pk = *pk; 
-    shake128(sk->h_pk, 32, (uint8_t*)pk, sizeof(mlwq_pk));
+
+    sk->pk = *pk;
+
+    /* H(pk): hash the canonical packed representation with SHA3-256.
+     * Must match what ref_mlwq_kem_encaps and crypto_kem_enc compute. */
+    uint8_t pk_bytes[MLWQ_PUBLICKEYBYTES];
+    for (int i = 0; i < MLWQ_K; i++)
+        ref_poly_tobytes(pk_bytes + i * MLWQ_POLYBYTES, &pk->b_q.vec[i]);
+    memcpy(pk_bytes + MLWQ_POLYVECBYTES, pk->seed_A, SEEDBYTES);
+    sha3_256(sk->h_pk, pk_bytes, MLWQ_PUBLICKEYBYTES);
+
     random_bytes(sk->z, 32);
 }
 
@@ -189,10 +194,17 @@ void ref_mlwq_kem_encaps(mlwq_ciphertext *ct, uint8_t *ss, const mlwq_pk *pk) {
     memset(ct, 0, sizeof(mlwq_ciphertext));
     uint8_t m[32];
     random_bytes(m, 32);
-    
+
+    /* Pack pk into its canonical representation and hash with SHA3-256.
+     * Consistent with ref_mlwq_kem_keygen and crypto_kem_enc. */
+    uint8_t pk_bytes[MLWQ_PUBLICKEYBYTES];
+    for (int i = 0; i < MLWQ_K; i++)
+        ref_poly_tobytes(pk_bytes + i * MLWQ_POLYBYTES, &pk->b_q.vec[i]);
+    memcpy(pk_bytes + MLWQ_POLYVECBYTES, pk->seed_A, SEEDBYTES);
+
     uint8_t buf[64]; 
     memcpy(buf, m, 32);
-    shake128(buf+32, 32, (uint8_t*)pk, sizeof(mlwq_pk)); // H(pk)
+    sha3_256(buf + 32, pk_bytes, MLWQ_PUBLICKEYBYTES); /* H(pk) */
     
     uint8_t kr[64];
     shake128(kr, 64, buf, 64);

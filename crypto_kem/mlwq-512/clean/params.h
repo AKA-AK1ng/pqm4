@@ -24,7 +24,7 @@
 // 位宽/压缩参数
 // L1: PK=10, U=9, V=5
 #define BIT_PK 10
-#define BIT_U  9
+#define BIT_U  10
 #define BIT_V  5
 
 // 量化参数（你当前实现使用）
@@ -71,5 +71,8 @@
 #define MLWQ_PUBLICKEYBYTES (MLWQ_POLYVECBYTES + SEEDBYTES)
 #define MLWQ_SECRETKEYBYTES (MLWQ_POLYVECBYTES)
 #define MLWQ_SSBYTES 32
+
+// KEM secret key: packed_s || packed_pk || H(pk) || z
+#define MLWQ_KEM_SECRETKEYBYTES (MLWQ_POLYVECBYTES + MLWQ_PUBLICKEYBYTES + HASHBYTES + SEEDBYTES)
 
 #endif

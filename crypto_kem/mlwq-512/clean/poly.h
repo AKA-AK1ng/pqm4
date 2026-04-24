@@ -21,6 +21,9 @@ void ref_poly_msg_decode(uint8_t *msg, const poly *p);
 // or implement it if needed. For now, main uses memcmp/binary check.
 // int ref_check_poly_eq(const poly *a, const poly *b); 
 
+void ref_poly_tobytes(uint8_t *r, const poly *a);
+void ref_poly_frombytes(poly *r, const uint8_t *a);
+
 void ref_poly_compress_u(uint8_t *r, const poly *a);
 void ref_poly_decompress_u(poly *r, const uint8_t *a);
 

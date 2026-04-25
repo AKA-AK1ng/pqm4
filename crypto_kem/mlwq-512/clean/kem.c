@@ -4,8 +4,6 @@
 #include "structs.h"
 #include "mlwq.h"
 #include "poly.h"
-#include "fips202.h"
-#include "random.h"
 
 /*
  * Byte layout of the packed public key (MLWQ_PUBLICKEYBYTES bytes):

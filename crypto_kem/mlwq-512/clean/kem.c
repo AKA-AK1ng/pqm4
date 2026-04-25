@@ -101,25 +101,7 @@ int crypto_kem_enc(unsigned char *ct, unsigned char *ss,
     mlwq_ciphertext ct_s;
 
     unpack_pk(&pk_s, pk);
-
-    /* Random message */
-    uint8_t m[32];
-    random_bytes(m, 32);
-
-    /* H(pk) over the packed public key bytes */
-    uint8_t h_pk[HASHBYTES];
-    shake128(h_pk, HASHBYTES, pk, MLWQ_PUBLICKEYBYTES);
-
-    /* Derive shared secret and encryption randomness: kr = SHAKE128(m || H(pk)) */
-    uint8_t buf[64];
-    memcpy(buf, m, 32);
-    memcpy(buf + 32, h_pk, HASHBYTES);
-    uint8_t kr[64];
-    shake128(kr, 64, buf, 64);
-
-    /* ss = kr[0:32], encryption seed = kr[32:64] */
-    memcpy(ss, kr, MLWQ_SSBYTES);
-    ref_mlwq_encrypt(&ct_s, &pk_s, m, kr + 32);
+    ref_mlwq_kem_encaps(&ct_s, ss, &pk_s);
 
     pack_ct(ct, &ct_s);
     return 0;
@@ -134,30 +116,6 @@ int crypto_kem_dec(unsigned char *ss, const unsigned char *ct,
     unpack_sk(&sk_s, sk);
     unpack_ct(&ct_s, ct);
 
-    /* Decrypt to recover message candidate */
-    uint8_t m[32];
-    ref_mlwq_decrypt(m, &sk_s.pke_sk, &ct_s);
-
-    /* Re-derive kr using stored H(pk) */
-    uint8_t buf[64];
-    memcpy(buf, m, 32);
-    memcpy(buf + 32, sk_s.h_pk, HASHBYTES);
-    uint8_t kr[64];
-    shake128(kr, 64, buf, 64);
-
-    /* Re-encrypt and compare packed ciphertexts */
-    mlwq_ciphertext ct_prime;
-    ref_mlwq_encrypt(&ct_prime, &sk_s.pk, m, kr + 32);
-
-    uint8_t ct_prime_bytes[MLWQ_CIPHERTEXTBYTES];
-    pack_ct(ct_prime_bytes, &ct_prime);
-
-    if (memcmp(ct, ct_prime_bytes, MLWQ_CIPHERTEXTBYTES) == 0) {
-        memcpy(ss, kr, MLWQ_SSBYTES);
-    } else {
-        /* Implicit rejection */
-        shake128(ss, MLWQ_SSBYTES, sk_s.z, SEEDBYTES);
-    }
-
+    ref_mlwq_kem_decaps(ss, &sk_s, &ct_s);
     return 0;
 }

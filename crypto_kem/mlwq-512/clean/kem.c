@@ -35,6 +35,7 @@ static void unpack_pk(mlwq_pk *pk, const unsigned char *in)
     for (int i = 0; i < MLWQ_K; i++)
         ref_poly_frombytes(&pk->b_q.vec[i], in + i * MLWQ_POLYBYTES);
     memcpy(pk->seed_A, in + MLWQ_POLYVECBYTES, SEEDBYTES);
+    /* seed_d is not serialized in packed pk used by this KEM API. */
     memset(pk->seed_d, 0, SEEDBYTES);
 }
 

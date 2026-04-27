@@ -119,31 +119,65 @@ void ref_poly_frombytes(poly *r, const uint8_t *a) {
 
 // =========================================================================
 // 2. 密文 U 压缩 (compress_u)
-// 全等级均为 10-bit
+// 根据 BIT_U 自动适配
 // =========================================================================
 
 void ref_poly_compress_u(uint8_t *r, const poly *a) {
-    // 10-bit: 4 coeffs -> 5 bytes
     int i;
+#if BIT_U == 9
+    // 9-bit: 8 coeffs -> 9 bytes
+    for(i=0; i<MLWQ_N/8; i++) {
+        uint16_t t[8];
+        for(int j=0; j<8; j++) t[j] = (uint16_t)(a->coeffs[8*i+j] & 0x1FF);
+        r[9*i+0] = (uint8_t)(t[0]);
+        r[9*i+1] = (uint8_t)((t[0] >> 8) | (t[1] << 1));
+        r[9*i+2] = (uint8_t)((t[1] >> 7) | (t[2] << 2));
+        r[9*i+3] = (uint8_t)((t[2] >> 6) | (t[3] << 3));
+        r[9*i+4] = (uint8_t)((t[3] >> 5) | (t[4] << 4));
+        r[9*i+5] = (uint8_t)((t[4] >> 4) | (t[5] << 5));
+        r[9*i+6] = (uint8_t)((t[5] >> 3) | (t[6] << 6));
+        r[9*i+7] = (uint8_t)((t[6] >> 2) | (t[7] << 7));
+        r[9*i+8] = (uint8_t)(t[7] >> 1);
+    }
+#elif BIT_U == 10
+    // 10-bit: 4 coeffs -> 5 bytes
     for(i=0; i<MLWQ_N/4; i++) {
         uint16_t t[4];
-        for(int j=0;j<4;j++) t[j] = a->coeffs[4*i+j];
+        for(int j=0;j<4;j++) t[j] = (uint16_t)a->coeffs[4*i+j];
         r[5*i+0] = (uint8_t)(t[0]);
         r[5*i+1] = (uint8_t)((t[0] >> 8) | (t[1] << 2));
         r[5*i+2] = (uint8_t)((t[1] >> 6) | (t[2] << 4));
         r[5*i+3] = (uint8_t)((t[2] >> 4) | (t[3] << 6));
         r[5*i+4] = (uint8_t)(t[3] >> 2);
     }
+#else
+    #error "Unsupported BIT_U"
+#endif
 }
 
 void ref_poly_decompress_u(poly *r, const uint8_t *a) {
     int i;
+#if BIT_U == 9
+    for(i=0; i<MLWQ_N/8; i++) {
+        r->coeffs[8*i+0] =  (a[9*i+0]       | ((uint16_t)a[9*i+1] << 8)) & 0x1FF;
+        r->coeffs[8*i+1] = ((a[9*i+1] >> 1) | ((uint16_t)a[9*i+2] << 7)) & 0x1FF;
+        r->coeffs[8*i+2] = ((a[9*i+2] >> 2) | ((uint16_t)a[9*i+3] << 6)) & 0x1FF;
+        r->coeffs[8*i+3] = ((a[9*i+3] >> 3) | ((uint16_t)a[9*i+4] << 5)) & 0x1FF;
+        r->coeffs[8*i+4] = ((a[9*i+4] >> 4) | ((uint16_t)a[9*i+5] << 4)) & 0x1FF;
+        r->coeffs[8*i+5] = ((a[9*i+5] >> 5) | ((uint16_t)a[9*i+6] << 3)) & 0x1FF;
+        r->coeffs[8*i+6] = ((a[9*i+6] >> 6) | ((uint16_t)a[9*i+7] << 2)) & 0x1FF;
+        r->coeffs[8*i+7] = ((a[9*i+7] >> 7) | ((uint16_t)a[9*i+8] << 1)) & 0x1FF;
+    }
+#elif BIT_U == 10
     for(i=0; i<MLWQ_N/4; i++) {
         r->coeffs[4*i+0] = ((a[5*i+0] >> 0) | ((uint16_t)(a[5*i+1] & 0x03) << 8));
         r->coeffs[4*i+1] = ((a[5*i+1] >> 2) | ((uint16_t)(a[5*i+2] & 0x0F) << 6));
         r->coeffs[4*i+2] = ((a[5*i+2] >> 4) | ((uint16_t)(a[5*i+3] & 0x3F) << 4));
         r->coeffs[4*i+3] = ((a[5*i+3] >> 6) | ((uint16_t)(a[5*i+4] & 0xFF) << 2));
     }
+#else
+    #error "Unsupported BIT_U"
+#endif
 }
 
 

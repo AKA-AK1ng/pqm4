@@ -17,7 +17,7 @@
  *   z                    (SEEDBYTES bytes)
  *
  * Byte layout of the packed ciphertext (MLWQ_CIPHERTEXTBYTES bytes):
- *   u[0..K-1] compressed (MLWQ_POLYVECCOMPRESSEDBYTES bytes, 10-bit per coeff)
+ *   u[0..K-1] compressed (MLWQ_POLYVECCOMPRESSEDBYTES bytes, BIT_U per coeff)
  *   v compressed         (MLWQ_POLYCOMPRESSEDBYTES bytes, 5-bit per coeff)
  */
 

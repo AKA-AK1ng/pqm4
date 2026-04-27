@@ -51,6 +51,13 @@ static void poly_getnoise_eta1(poly *r, const uint8_t *seed, uint8_t nonce) {
     cbd3(r, buf);
 }
 
+// Canonical packed public-key bytes (b_q || seed_A), excluding seed_d.
+static void pack_pk_bytes(uint8_t out[MLWQ_PUBLICKEYBYTES], const mlwq_pk *pk) {
+    for (int i = 0; i < MLWQ_K; i++)
+        ref_poly_tobytes(out + i * MLWQ_POLYBYTES, &pk->b_q.vec[i]);
+    memcpy(out + MLWQ_POLYVECBYTES, pk->seed_A, SEEDBYTES);
+}
+
 // -------------------------------------------------------------------------
 // Core Logic
 // -------------------------------------------------------------------------
@@ -182,9 +189,7 @@ void ref_mlwq_kem_keygen(mlwq_pk *pk, mlwq_kem_sk *sk) {
     /* H(pk): hash the canonical packed representation with SHAKE128.
      * Must match what ref_mlwq_kem_encaps and crypto_kem_enc compute. */
     uint8_t pk_bytes[MLWQ_PUBLICKEYBYTES];
-    for (int i = 0; i < MLWQ_K; i++)
-        ref_poly_tobytes(pk_bytes + i * MLWQ_POLYBYTES, &pk->b_q.vec[i]);
-    memcpy(pk_bytes + MLWQ_POLYVECBYTES, pk->seed_A, SEEDBYTES);
+    pack_pk_bytes(pk_bytes, pk);
     shake128(sk->h_pk, HASHBYTES, pk_bytes, MLWQ_PUBLICKEYBYTES);
 
     random_bytes(sk->z, 32);
@@ -192,52 +197,50 @@ void ref_mlwq_kem_keygen(mlwq_pk *pk, mlwq_kem_sk *sk) {
 
 void ref_mlwq_kem_encaps(mlwq_ciphertext *ct, uint8_t *ss, const mlwq_pk *pk) {
     memset(ct, 0, sizeof(mlwq_ciphertext));
-    uint8_t m[32];
-    random_bytes(m, 32);
+    uint8_t m[MLWQ_SSBYTES];
+    random_bytes(m, MLWQ_SSBYTES);
 
     /* Pack pk into its canonical representation and hash with SHAKE128.
      * Consistent with ref_mlwq_kem_keygen and crypto_kem_enc. */
     uint8_t pk_bytes[MLWQ_PUBLICKEYBYTES];
-    for (int i = 0; i < MLWQ_K; i++)
-        ref_poly_tobytes(pk_bytes + i * MLWQ_POLYBYTES, &pk->b_q.vec[i]);
-    memcpy(pk_bytes + MLWQ_POLYVECBYTES, pk->seed_A, SEEDBYTES);
+    pack_pk_bytes(pk_bytes, pk);
 
-    uint8_t buf[64]; 
-    memcpy(buf, m, 32);
-    shake128(buf + 32, HASHBYTES, pk_bytes, MLWQ_PUBLICKEYBYTES); /* H(pk) */
+    uint8_t buf[MLWQ_SSBYTES + HASHBYTES];
+    memcpy(buf, m, MLWQ_SSBYTES);
+    shake128(buf + MLWQ_SSBYTES, HASHBYTES, pk_bytes, MLWQ_PUBLICKEYBYTES); /* H(pk) */
     
-    uint8_t kr[64];
-    shake128(kr, 64, buf, 64);
+    uint8_t kr[2 * MLWQ_SSBYTES];
+    shake128(kr, sizeof(kr), buf, sizeof(buf));
     
-    memcpy(ss, kr, 32);
-    // kr+32 is used as the seed for noise 'r'
-    ref_mlwq_encrypt(ct, pk, m, kr+32);
+    memcpy(ss, kr, MLWQ_SSBYTES);
+    // kr+MLWQ_SSBYTES is used as the seed for noise 'r'
+    ref_mlwq_encrypt(ct, pk, m, kr + MLWQ_SSBYTES);
 }
 
 int ref_mlwq_kem_decaps(uint8_t *ss, const mlwq_kem_sk *sk, const mlwq_ciphertext *ct) {
-    uint8_t m[32];
+    uint8_t m[MLWQ_SSBYTES];
     ref_mlwq_decrypt(m, &sk->pke_sk, ct);
     
-    uint8_t buf[64];
-    memcpy(buf, m, 32);
-    memcpy(buf+32, sk->h_pk, 32);
+    uint8_t buf[MLWQ_SSBYTES + HASHBYTES];
+    memcpy(buf, m, MLWQ_SSBYTES);
+    memcpy(buf + MLWQ_SSBYTES, sk->h_pk, HASHBYTES);
     
-    uint8_t kr[64];
-    shake128(kr, 64, buf, 64);
+    uint8_t kr[2 * MLWQ_SSBYTES];
+    shake128(kr, sizeof(kr), buf, sizeof(buf));
     
     mlwq_ciphertext ct_prime;
     memset(&ct_prime, 0, sizeof(mlwq_ciphertext));
     
-    // Re-encrypt using recovered seed (kr+32)
-    ref_mlwq_encrypt(&ct_prime, &sk->pk, m, kr+32);
+    // Re-encrypt using recovered seed (kr+MLWQ_SSBYTES)
+    ref_mlwq_encrypt(&ct_prime, &sk->pk, m, kr + MLWQ_SSBYTES);
     
     // Check equality
     if(memcmp(ct, &ct_prime, sizeof(mlwq_ciphertext)) == 0) {
-        memcpy(ss, kr, 32);
+        memcpy(ss, kr, MLWQ_SSBYTES);
         return 1;
     } else {
         // Implicit rejection
-        shake128(ss, 32, sk->z, 32); // Input z should probably absorb ct too in robust impl
+        shake128(ss, MLWQ_SSBYTES, sk->z, SEEDBYTES); // Input z should probably absorb ct too in robust impl
         return 0;
     }
 }

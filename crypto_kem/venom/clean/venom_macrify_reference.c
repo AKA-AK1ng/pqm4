@@ -5,13 +5,9 @@
 *********************************************************************************************/
 
 #if defined(USE_AES128_FOR_A)
-#if !defined(USE_OPENSSL)
-    #include "../../common/aes/aes.h"
-#else
-    #include "../../common/aes/aes_openssl.h"
-#endif
+    #include "aes.h"
 #elif defined (USE_SHAKE128_FOR_A)
-    #include "../../common/sha3/fips202.h"
+    #include "fips202.h"
 #endif    
 
 
@@ -31,17 +27,9 @@ int frodo_mul_add_as_plus_e(uint16_t *out, const uint16_t *s, const uint16_t *e,
         }
     }
     
-#if !defined(USE_OPENSSL)
-    uint8_t aes_key_schedule[16*11];
-    AES128_load_schedule(seed_A, aes_key_schedule);  
-    AES128_ECB_enc_sch((uint8_t*)A, A_len, aes_key_schedule, (uint8_t*)A);
-#else
-    EVP_CIPHER_CTX *aes_key_schedule;    
-    int len;
-    if (!(aes_key_schedule = EVP_CIPHER_CTX_new())) handleErrors();    
-    if (1 != EVP_EncryptInit_ex(aes_key_schedule, EVP_aes_128_ecb(), NULL, seed_A, NULL)) handleErrors();    
-    if (1 != EVP_EncryptUpdate(aes_key_schedule, (uint8_t*)A, &len, (uint8_t*)A, A_len)) handleErrors();
-#endif
+    aes128ctx aes_key_schedule;
+    aes128_ecb_keyexp(&aes_key_schedule, seed_A);
+    aes128_ecb((uint8_t*)A, (uint8_t*)A, A_len / AES_BLOCKBYTES, &aes_key_schedule);
 #elif defined(USE_SHAKE128_FOR_A)  // Matrix A generation using SHAKE128, done per 16*N-bit row   
     uint8_t seed_A_separated[2 + BYTES_SEED_A];
     uint16_t* seed_A_origin = (uint16_t*)&seed_A_separated;
@@ -67,7 +55,7 @@ int frodo_mul_add_as_plus_e(uint16_t *out, const uint16_t *s, const uint16_t *e,
     }
     
 #if defined(USE_AES128_FOR_A)
-    AES128_free_schedule(aes_key_schedule);
+    aes128_ctx_release(&aes_key_schedule);
 #endif
     return 1;
 }
@@ -89,17 +77,9 @@ int frodo_mul_add_sa_plus_e(uint16_t *out, const uint16_t *s, uint16_t *e, const
         }
     }
     
-#if !defined(USE_OPENSSL)
-    uint8_t aes_key_schedule[16*11];
-    AES128_load_schedule(seed_A, aes_key_schedule);  
-    AES128_ECB_enc_sch((uint8_t*)A, A_len, aes_key_schedule, (uint8_t*)A);
-#else
-    EVP_CIPHER_CTX *aes_key_schedule;    
-    int len;
-    if (!(aes_key_schedule = EVP_CIPHER_CTX_new())) handleErrors();    
-    if (1 != EVP_EncryptInit_ex(aes_key_schedule, EVP_aes_128_ecb(), NULL, seed_A, NULL)) handleErrors();    
-    if (1 != EVP_EncryptUpdate(aes_key_schedule, (uint8_t*)A, &len, (uint8_t*)A, A_len)) handleErrors();
-#endif
+    aes128ctx aes_key_schedule;
+    aes128_ecb_keyexp(&aes_key_schedule, seed_A);
+    aes128_ecb((uint8_t*)A, (uint8_t*)A, A_len / AES_BLOCKBYTES, &aes_key_schedule);
 #elif defined (USE_SHAKE128_FOR_A)  // Matrix A generation using SHAKE128, done per 16*N-bit row
     uint8_t seed_A_separated[2 + BYTES_SEED_A];
     uint16_t* seed_A_origin = (uint16_t*)&seed_A_separated;
@@ -125,7 +105,7 @@ int frodo_mul_add_sa_plus_e(uint16_t *out, const uint16_t *s, uint16_t *e, const
     }
     
 #if defined(USE_AES128_FOR_A)
-    AES128_free_schedule(aes_key_schedule);
+    aes128_ctx_release(&aes_key_schedule);
 #endif
     return 1;
 }

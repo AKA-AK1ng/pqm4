@@ -15,10 +15,10 @@
 
 #if defined(WINDOWS)            // Microsoft Windows
     #define OS_TARGET OS_WIN
-#elif defined(NIX)              // Unix-like operative systems
+#elif defined(NIX) || defined(__unix__) || defined(__APPLE__) || defined(PQM4)
     #define OS_TARGET OS_NIX 
 #else
-    #error -- "Unsupported OS"
+    #define OS_TARGET OS_NIX
 #endif
 
 
@@ -47,18 +47,18 @@
 #define TARGET_PPC          4
 #define TARGET_S390X        5
 
-#if defined(_AMD64_)
+#if defined(_AMD64_) || defined(__x86_64__) || defined(__amd64__)
     #define TARGET TARGET_AMD64 
-#elif defined(_X86_)
+#elif defined(_X86_) || defined(__i386__)
     #define TARGET TARGET_x86
-#elif defined(_ARM_)
+#elif defined(_ARM_) || defined(__arm__) || defined(__ARM_ARCH)
     #define TARGET TARGET_ARM
 #elif defined(_PPC_)
     #define TARGET TARGET_PPC 
 #elif defined(_S390X_)
     #define TARGET TARGET_S390X
 #else
-    #error -- "Unsupported ARCHITECTURE"
+    #define TARGET TARGET_ARM
 #endif
 
 
@@ -78,10 +78,10 @@
     #define USE_FAST
 #elif defined(_FAST_GENERIC_)
     #define USE_FAST_GENERIC
-#elif defined(_REFERENCE_)
+#elif defined(_REFERENCE_) || defined(PQM4)
     #define USE_REFERENCE
 #else
-    #error -- unsupported implementation
+    #define USE_REFERENCE
 #endif
 
 
@@ -90,8 +90,10 @@
     #define USE_AES128_FOR_A
 #elif defined(_SHAKE128_FOR_A_)
     #define USE_SHAKE128_FOR_A
+#elif defined(PQM4)
+    #define USE_SHAKE128_FOR_A
 #else
-    ##error -- missing method for generating matrix A
+    #error -- "Missing method for generating matrix A"
 #endif
 
 

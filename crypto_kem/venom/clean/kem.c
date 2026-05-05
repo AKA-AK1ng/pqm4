@@ -13,7 +13,7 @@
 // 方案void shake128(unsigned char *output, unsigned long long outlen, const unsigned char *input,  unsigned long long inlen);
 // 框架void shake128(uint8_t *output, size_t outlen,const uint8_t *input, size_t inlen);
 // 应用中为"shake"后在venom*.c中宏定义
-#include "random.h"
+#include "randombytes.h"
 // randombytes应该不变
 #ifdef DO_VALGRIND_CHECK
 #include <valgrind/memcheck.h>

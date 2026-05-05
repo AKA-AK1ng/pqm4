@@ -5,17 +5,9 @@
 *********************************************************************************************/
 
 #if defined(USE_AES128_FOR_A)
-#if !defined(USE_OPENSSL)
     #include "aes.h"
-#else
-    #include "../../common/aes/aes_openssl.h"
-#endif
 #elif defined (USE_SHAKE128_FOR_A)
-#if !defined(USE_AVX2)
-    #include "ips202.h"
-#else
-    #include "../../common/sha3/fips202x4.h"
-#endif
+    #include "fips202.h"
 #endif    
 #if defined(USE_AVX2)
     #include <immintrin.h>
@@ -34,16 +26,9 @@ int frodo_mul_add_as_plus_e(uint16_t *out, const uint16_t *s, const uint16_t *e,
     }    
     
 #if defined(USE_AES128_FOR_A)
-    int16_t a_row_temp[4*PARAMS_N] = {0};                       // Take four lines of A at once       
-#if !defined(USE_OPENSSL)
-    uint8_t aes_key_schedule[16*11];
-    AES128_load_schedule(seed_A, aes_key_schedule);   
-#else
-    EVP_CIPHER_CTX *aes_key_schedule;    
-    int len;
-    if (!(aes_key_schedule = EVP_CIPHER_CTX_new())) handleErrors();    
-    if (1 != EVP_EncryptInit_ex(aes_key_schedule, EVP_aes_128_ecb(), NULL, seed_A, NULL)) handleErrors();    
-#endif
+    int16_t a_row_temp[4*PARAMS_N] = {0};                       // Take four lines of A at once
+    aes128ctx aes_key_schedule;
+    aes128_ecb_keyexp(&aes_key_schedule, seed_A);
                                      
     for (j = 0; j < PARAMS_N; j += PARAMS_STRIPE_STEP) {
         a_row_temp[j + 1 + 0*PARAMS_N] = UINT16_TO_LE(j);       // Loading values in the little-endian order
@@ -60,11 +45,8 @@ int frodo_mul_add_as_plus_e(uint16_t *out, const uint16_t *s, const uint16_t *e,
             a_row_temp[j + 3*PARAMS_N] = UINT16_TO_LE(i+3);
         }
 
-#if !defined(USE_OPENSSL)
-        AES128_ECB_enc_sch((uint8_t*)a_row_temp, 4*PARAMS_N*sizeof(int16_t), aes_key_schedule, (uint8_t*)a_row);
-#else   
-        if (1 != EVP_EncryptUpdate(aes_key_schedule, (uint8_t*)a_row, &len, (uint8_t*)a_row_temp, 4*PARAMS_N*sizeof(int16_t))) handleErrors();
-#endif
+        aes128_ecb((uint8_t*)a_row, (uint8_t*)a_row_temp,
+                   (4 * PARAMS_N * sizeof(int16_t)) / AES_BLOCKBYTES, &aes_key_schedule);
 #elif defined (USE_SHAKE128_FOR_A)       
 #if !defined(USE_AVX2)
     uint8_t seed_A_separated[2 + BYTES_SEED_A];
@@ -121,7 +103,7 @@ int frodo_mul_add_as_plus_e(uint16_t *out, const uint16_t *s, const uint16_t *e,
     }
     
 #if defined(USE_AES128_FOR_A)
-    AES128_free_schedule(aes_key_schedule);
+    aes128_ctx_release(&aes_key_schedule);
 #endif
     return 1;
 }
@@ -137,15 +119,8 @@ int frodo_mul_add_sa_plus_e(uint16_t *out, const uint16_t *s, uint16_t *e, const
     ALIGN_HEADER(32) uint16_t A[PARAMS_N*8] ALIGN_FOOTER(32) = {0};
 
 #if defined(USE_AES128_FOR_A)
-#if !defined(USE_OPENSSL)
-    uint8_t aes_key_schedule[16*11];
-    AES128_load_schedule(seed_A, aes_key_schedule);
-#else
-    EVP_CIPHER_CTX *aes_key_schedule;
-    int len;
-    if (!(aes_key_schedule = EVP_CIPHER_CTX_new())) handleErrors();
-    if (1 != EVP_EncryptInit_ex(aes_key_schedule, EVP_aes_128_ecb(), NULL, seed_A, NULL)) handleErrors();
-#endif
+    aes128ctx aes_key_schedule;
+    aes128_ecb_keyexp(&aes_key_schedule, seed_A);
     // Initialize matrix used for encryption
     ALIGN_HEADER(32) uint16_t Ainit[PARAMS_N*8] ALIGN_FOOTER(32) = {0};
        
@@ -170,11 +145,7 @@ int frodo_mul_add_sa_plus_e(uint16_t *out, const uint16_t *s, uint16_t *e, const
         }
 
         size_t A_len = 8 * PARAMS_N * sizeof(uint16_t);
-#if !defined(USE_OPENSSL)
-        AES128_ECB_enc_sch((uint8_t*)Ainit, A_len, aes_key_schedule, (uint8_t*)A);
-#else   
-        if (1 != EVP_EncryptUpdate(aes_key_schedule, (uint8_t*)A, &len, (uint8_t*)Ainit, A_len)) handleErrors();
-#endif 
+        aes128_ecb((uint8_t*)A, (uint8_t*)Ainit, A_len / AES_BLOCKBYTES, &aes_key_schedule);
 #elif defined (USE_SHAKE128_FOR_A)  // SHAKE128
 #if !defined(USE_AVX2)
     uint8_t seed_A_separated[2 + BYTES_SEED_A];
@@ -270,7 +241,7 @@ int frodo_mul_add_sa_plus_e(uint16_t *out, const uint16_t *s, uint16_t *e, const
     memcpy((unsigned char*)out, (unsigned char*)e, 2*PARAMS_N*PARAMS_NBAR);
 
 #if defined(USE_AES128_FOR_A)
-    AES128_free_schedule(aes_key_schedule);
+    aes128_ctx_release(&aes_key_schedule);
 #endif
     return 1;
 }

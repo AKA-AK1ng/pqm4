@@ -5,6 +5,7 @@
 *********************************************************************************************/
 
 #include "api.h"
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -150,6 +151,7 @@ int crypto_kem_keypair(unsigned char* pk, unsigned char* sk)
         S[i] = LE_TO_UINT16(S[i]);
     }
     frodo_sample_n(S, PARAMS_N*PARAMS_NBAR);
+    memset(B, 0, sizeof(B));
     frodo_mul_add_as_plus_e(B, S, B, pk_seedA);
     if (frodo_quantize_dithered_local(B, B, PARAMS_N*PARAMS_NBAR, pk_seedA, BYTES_SEED_A, DITHER_DOMAIN_PK, PARAMS_PK_LOGP) != 0) {
         ret = 1;
@@ -221,6 +223,7 @@ int crypto_kem_enc(unsigned char *ct, unsigned char *ss, const unsigned char *pk
         Sp[i] = LE_TO_UINT16(Sp[i]);
     }
     frodo_sample_n(Sp, PARAMS_N*PARAMS_NBAR);
+    memset(Bp, 0, sizeof(Bp));
     frodo_mul_add_sa_plus_e(Bp, Sp, Bp, pk_seedA);
     for (size_t i = 0; i < PARAMS_N * PARAMS_NBAR; i++) {
         Bp[i] &= frodo_q_mask_local();
@@ -236,6 +239,7 @@ int crypto_kem_enc(unsigned char *ct, unsigned char *ss, const unsigned char *pk
         ret = 1;
         goto cleanup;
     }
+    memset(V, 0, sizeof(V));
     frodo_mul_add_sb_plus_e(V, B, Sp, V);
 
     frodo_key_encode(C, (uint16_t*)mu);
@@ -358,10 +362,8 @@ int crypto_kem_dec(unsigned char *ss, const unsigned char *ct, const unsigned ch
     }
 
     memcpy(Fin_ct, ct, CRYPTO_CIPHERTEXTBYTES);
-    {
-        int8_t selector = ct_verify(Bp, BBp, PARAMS_N*PARAMS_NBAR) | ct_verify(C, CC, PARAMS_NBAR*PARAMS_NBAR);
-        ct_select((uint8_t*)Fin_k, (uint8_t*)kprime, (uint8_t*)sk_s, CRYPTO_BYTES, selector);
-    }
+    int8_t selector = ct_verify(Bp, BBp, PARAMS_N*PARAMS_NBAR) | ct_verify(C, CC, PARAMS_NBAR*PARAMS_NBAR);
+    ct_select((uint8_t*)Fin_k, (uint8_t*)kprime, (uint8_t*)sk_s, CRYPTO_BYTES, selector);
     shake(ss, CRYPTO_BYTES, Fin, CRYPTO_CIPHERTEXTBYTES + CRYPTO_BYTES);
 
 cleanup:

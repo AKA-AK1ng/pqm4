@@ -255,8 +255,8 @@ int crypto_kem_dec(uint8_t *ss, const uint8_t *ct, const uint8_t *sk) {
     uint16_t Bp[PARAMS_N * PARAMS_NBAR] = {0};
     uint16_t W[PARAMS_NBAR * PARAMS_NBAR] = {0};               // contains secret data
     uint16_t C[PARAMS_NBAR * PARAMS_NBAR] = {0};
-    uint16_t CC[PARAMS_NBAR * PARAMS_NBAR] = {0};
-    uint16_t BBp[PARAMS_N * PARAMS_NBAR] = {0};
+    uint16_t C_check[PARAMS_NBAR * PARAMS_NBAR] = {0};
+    uint16_t Bp_check[PARAMS_N * PARAMS_NBAR] = {0};
     uint16_t Sp[PARAMS_N * PARAMS_NBAR] = {0};                 // contains secret data
     const uint8_t *ct_c1 = &ct[0];
     const uint8_t *ct_c2 = &ct[CT_C1_PACKED_BYTES];
@@ -271,7 +271,7 @@ int crypto_kem_dec(uint8_t *ss, const uint8_t *ct, const uint8_t *sk) {
     uint8_t G2in[BYTES_PKHASH + BYTES_MU + BYTES_SALT];        // contains secret data via muprime
     uint8_t *pkh = &G2in[0];
     uint8_t *muprime = &G2in[BYTES_PKHASH];                    // contains secret data
-    uint8_t *salt = &G2in[BYTES_PKHASH + BYTES_MU];
+    uint8_t *G2in_salt = &G2in[BYTES_PKHASH + BYTES_MU];
     uint8_t G2out[BYTES_SEED_SE + CRYPTO_BYTES];               // contains secret data
     uint8_t *seedSEprime = &G2out[0];                          // contains secret data
     uint8_t *kprime = &G2out[BYTES_SEED_SE];                   // contains secret data
@@ -287,15 +287,15 @@ int crypto_kem_dec(uint8_t *ss, const uint8_t *ct, const uint8_t *sk) {
     // Compute W = C - Bp*S (mod q), and decode mu'
     unpack(Bp, PARAMS_N * PARAMS_NBAR, ct_c1, CT_C1_PACKED_BYTES, PARAMS_U_LOGP);
     unpack(C, PARAMS_NBAR * PARAMS_NBAR, ct_c2, CT_C2_PACKED_BYTES, PARAMS_V_LOGP);
-    reconstruct_dithered_local(BBp, Bp, PARAMS_N * PARAMS_NBAR, ct_salt, BYTES_SALT, DITHER_DOMAIN_U, PARAMS_U_LOGP);
-    reconstruct_dithered_local(CC, C, PARAMS_NBAR * PARAMS_NBAR, ct_salt, BYTES_SALT, DITHER_DOMAIN_V, PARAMS_V_LOGP);
-    mul_bs(W, BBp, S);
-    sub(W, CC, W);
+    reconstruct_dithered_local(Bp_check, Bp, PARAMS_N * PARAMS_NBAR, ct_salt, BYTES_SALT, DITHER_DOMAIN_U, PARAMS_U_LOGP);
+    reconstruct_dithered_local(C_check, C, PARAMS_NBAR * PARAMS_NBAR, ct_salt, BYTES_SALT, DITHER_DOMAIN_V, PARAMS_V_LOGP);
+    mul_bs(W, Bp_check, S);
+    sub(W, C_check, W);
     key_decode((uint16_t *)muprime, W);
 
     // Generate (seedSE' || k') = G_2(pkh || mu' || salt)
     memcpy(pkh, sk_pkh, BYTES_PKHASH);
-    memcpy(salt, ct_salt, BYTES_SALT);
+    memcpy(G2in_salt, ct_salt, BYTES_SALT);
     shake(G2out, BYTES_SEED_SE + CRYPTO_BYTES, G2in, BYTES_PKHASH + BYTES_MU + BYTES_SALT);
 
     // Recompute Bp and C in split domain
@@ -309,24 +309,24 @@ int crypto_kem_dec(uint8_t *ss, const uint8_t *ct, const uint8_t *sk) {
     shake128_inc_squeeze((uint8_t *)Sp, PARAMS_N * PARAMS_NBAR * sizeof(uint16_t), &state);
 
     sample_n(Sp, PARAMS_N * PARAMS_NBAR);
-    memset(BBp, 0, sizeof(BBp));
-    mul_add_sa_plus_e(BBp, Sp, pk_seedA);
+    memset(Bp_check, 0, sizeof(Bp_check));
+    mul_add_sa_plus_e(Bp_check, Sp, pk_seedA);
     for (size_t i = 0; i < PARAMS_N * PARAMS_NBAR; i++) {
-        BBp[i] &= q_mask_local();
+        Bp_check[i] &= q_mask_local();
     }
-    quantize_dithered_local(BBp, BBp, PARAMS_N * PARAMS_NBAR, ct_salt, BYTES_SALT, DITHER_DOMAIN_U, PARAMS_U_LOGP);
+    quantize_dithered_local(Bp_check, Bp_check, PARAMS_N * PARAMS_NBAR, ct_salt, BYTES_SALT, DITHER_DOMAIN_U, PARAMS_U_LOGP);
 
-    memset(CC, 0, sizeof(CC));
+    memset(C_check, 0, sizeof(C_check));
     unpack(B, PARAMS_N * PARAMS_NBAR, pk_b, PK_PACKED_BYTES, PARAMS_PK_LOGP);
     reconstruct_dithered_local(B, B, PARAMS_N * PARAMS_NBAR, pk_seedA, BYTES_SEED_A, DITHER_DOMAIN_PK, PARAMS_PK_LOGP);
-    mul_add_sb_plus_e(CC, B, Sp);
+    mul_add_sb_plus_e(C_check, B, Sp);
     key_encode(W, (uint16_t *)muprime);
-    add(CC, CC, W);
-    quantize_dithered_local(CC, CC, PARAMS_NBAR * PARAMS_NBAR, ct_salt, BYTES_SALT, DITHER_DOMAIN_V, PARAMS_V_LOGP);
+    add(C_check, C_check, W);
+    quantize_dithered_local(C_check, C_check, PARAMS_NBAR * PARAMS_NBAR, ct_salt, BYTES_SALT, DITHER_DOMAIN_V, PARAMS_V_LOGP);
 
     // Compute ss
     memcpy(Fin_ct, ct, CRYPTO_CIPHERTEXTBYTES);
-    int8_t selector = ct_verify(Bp, BBp, PARAMS_N * PARAMS_NBAR) | ct_verify(C, CC, PARAMS_NBAR * PARAMS_NBAR);
+    int8_t selector = ct_verify(Bp, Bp_check, PARAMS_N * PARAMS_NBAR) | ct_verify(C, C_check, PARAMS_NBAR * PARAMS_NBAR);
     ct_select((uint8_t *)Fin_k, (uint8_t *)kprime, (uint8_t *)sk_s, CRYPTO_BYTES, selector);
     shake(ss, CRYPTO_BYTES, Fin, CRYPTO_CIPHERTEXTBYTES + CRYPTO_BYTES);
 
@@ -342,7 +342,7 @@ int crypto_kem_dec(uint8_t *ss, const uint8_t *ct, const uint8_t *sk) {
     clear_bytes((uint8_t *)B, sizeof(B));
     clear_bytes((uint8_t *)Bp, sizeof(Bp));
     clear_bytes((uint8_t *)C, sizeof(C));
-    clear_bytes((uint8_t *)CC, sizeof(CC));
-    clear_bytes((uint8_t *)BBp, sizeof(BBp));
+    clear_bytes((uint8_t *)C_check, sizeof(C_check));
+    clear_bytes((uint8_t *)Bp_check, sizeof(Bp_check));
     return 0;
 }

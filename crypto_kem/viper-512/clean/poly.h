@@ -32,4 +32,5 @@ void ref_poly_compress_v(uint8_t *r, const poly *a);
 void ref_poly_decompress_v(poly *r, const uint8_t *a);
 
 void ref_poly_getnoise_eta1(poly *r, const uint8_t *seed, uint8_t nonce);
+void ref_poly_getnoise_eta_r(poly *r, const uint8_t *seed, uint8_t nonce);
 #endif

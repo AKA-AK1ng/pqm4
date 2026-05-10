@@ -152,11 +152,11 @@ void ref_xof_expand_poly(poly *v, const uint8_t *seed, int32_t modulus) {
   unsigned int ctr;
   unsigned int buflen;
   uint8_t buf[2 * SHAKE128_RATE];
-  keccak_state state;
+  shake128incctx state;
 
   // shake128_absorb_once(&state, seed, 33);
   shake128_inc_init(&state);
-  shake128_inc_absorb(&state, extseed, 33);
+  shake128_inc_absorb(&state, seed, 33);
   shake128_inc_finalize(&state);
 
   // shake128_squeezeblocks(buf, 2, &state);

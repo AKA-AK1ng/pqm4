@@ -178,9 +178,14 @@ int ref_mlwq_kem_decaps(uint8_t *ss, const mlwq_kem_sk *sk, const mlwq_ciphertex
     uint8_t m[MU_BYTES];
     ref_mlwq_decrypt(m, &sk->pke_sk, ct);
 
+    uint8_t pk_bytes[MLWQ_PUBLICKEYBYTES];
+    for (int i = 0; i < MLWQ_K; i++)
+        ref_poly_tobytes(pk_bytes + i * MLWQ_POLYBYTES, &sk->pk.b_q.vec[i]);
+    memcpy(pk_bytes + MLWQ_POLYVECBYTES, sk->pk.seed_A, SEEDBYTES);
+
     uint8_t buf[2 * MU_BYTES];
     memcpy(buf, m, MU_BYTES);
-    shake128(buf + MU_BYTES, MU_BYTES, (uint8_t*)&sk->pk, sizeof(mlwq_pk));
+    shake128(buf + MU_BYTES, MU_BYTES, pk_bytes, MLWQ_PUBLICKEYBYTES);
 
     uint8_t kr[MLWQ_SSBYTES + SEEDBYTES];
     shake128(kr, sizeof(kr), buf, sizeof(buf));

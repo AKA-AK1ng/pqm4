@@ -3,12 +3,12 @@
 
 #include "params.h"
 
-#define CRYPTO_SECRETKEYBYTES  MLWQ_KEM_SECRETKEYBYTES  /* 6432 */
-#define CRYPTO_PUBLICKEYBYTES  MLWQ_PUBLICKEYBYTES       /* 3200 */
-#define CRYPTO_CIPHERTEXTBYTES MLWQ_CIPHERTEXTBYTES      /* 3456 */
-#define CRYPTO_BYTES           MLWQ_SSBYTES              /* 64   */
+#define CRYPTO_SECRETKEYBYTES  MLWQ_KEM_SECRETKEYBYTES  /* 2016 */
+#define CRYPTO_PUBLICKEYBYTES  MLWQ_PUBLICKEYBYTES      /* 992  */
+#define CRYPTO_CIPHERTEXTBYTES MLWQ_CIPHERTEXTBYTES     /* 1152 */
+#define CRYPTO_BYTES           MLWQ_SSBYTES             /* 32   */
 
-#define CRYPTO_ALGNAME "Viper-512"
+#define CRYPTO_ALGNAME "Viper-192"
 
 int crypto_kem_keypair(unsigned char *pk, unsigned char *sk);
 

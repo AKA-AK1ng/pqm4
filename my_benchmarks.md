@@ -16,6 +16,11 @@
 | ml-kem-768 (10 executions) | m4fstack | AVG: 614,988 <br /> MIN: 613,447 <br /> MAX: 624,749 | AVG: 634,914 <br /> MIN: 633,373 <br /> MAX: 644,675 | AVG: 683,219 <br /> MIN: 681,678 <br /> MAX: 692,980 |
 | frodo640 (10 executions) | frodokem640shake | AVG: 67,074,255 <br /> MIN: 67,074,255 <br /> MAX: 67,074,255 | AVG: 66,522,019 <br /> MIN: 66,522,019 <br /> MAX: 66,522,019 | AVG: 66,076,104 <br /> MIN: 66,076,104 <br /> MAX: 66,076,104 |
 | venom (10 executions) | venom640shake | AVG: 66,251,053 <br /> MIN: 66,251,053 <br /> MAX: 66,251,053 | AVG: 66,486,475 <br /> MIN: 66,486,475 <br /> MAX: 66,486,475 | AVG: 67,080,505 <br /> MIN: 67,080,505 <br /> MAX: 67,080,505 |
+| viper-128 (10 executions) | clean | AVG: 637,394 <br /> MIN: 637,101 <br /> MAX: 637,583 | AVG: 892,912 <br /> MIN: 892,621 <br /> MAX: 893,107 | AVG: 1,079,907 <br /> MIN: 1,079,607 <br /> MAX: 1,080,076 |
+| viper-192 (10 executions) | clean | AVG: 1,186,643 <br /> MIN: 1,185,206 <br /> MAX: 1,196,160 | AVG: 1,550,920 <br /> MIN: 1,549,435 <br /> MAX: 1,560,437 | AVG: 1,806,610 <br /> MIN: 1,805,104 <br /> MAX: 1,816,129 |
+| viper-256 (10 executions) | clean | AVG: 1,862,209 <br /> MIN: 1,859,804 <br /> MAX: 1,871,256 | AVG: 2,395,469 <br /> MIN: 2,393,036 <br /> MAX: 2,404,507 | AVG: 2,724,300 <br /> MIN: 2,721,847 <br /> MAX: 2,733,303 |
+| viper-384 (10 executions) | clean | AVG: 4,608,359 <br /> MIN: 4,601,190 <br /> MAX: 4,633,703 | AVG: 6,032,113 <br /> MIN: 6,024,976 <br /> MAX: 6,057,467 | AVG: 6,583,918 <br /> MIN: 6,576,633 <br /> MAX: 6,609,271 |
+| viper-512 (10 executions) | clean | AVG: 7,186,954 <br /> MIN: 7,181,104 <br /> MAX: 7,192,652 | AVG: 9,402,982 <br /> MIN: 9,397,221 <br /> MAX: 9,408,616 | AVG: 10,099,328 <br /> MIN: 10,093,704 <br /> MAX: 10,104,840 |
 ## Signature Schemes
 | scheme | implementation | key generation [cycles] | sign [cycles] | verify [cycles] |
 | ------ | -------------- | ----------------------- | ------------- | --------------- |
@@ -37,6 +42,11 @@
 | ml-kem-768 | m4fstack | 2,828 | 2,868 | 2,852 |
 | frodo640 | frodokem640shake | 26,404 | 51,780 | 72,404 |
 | venom | venom640shake | 27,020 | 47,940 | 68,596 |
+| viper-128 | clean | 11,536 | 15,056 | 19,256 |
+| viper-192 | clean | 17,504 | 22,032 | 27,264 |
+| viper-256 | clean | 24,504 | 30,056 | 36,288 |
+| viper-384 | clean | 51,776 | 60,512 | 69,816 |
+| viper-512 | clean | 75,008 | 85,972 | 97,224 |
 ## Signature Schemes
 | Scheme | Implementation | Key Generation [bytes] | Sign [bytes] | Verify [bytes] |
 | ------ | -------------- | ---------------------- | ------------ | -------------- |
@@ -58,6 +68,11 @@
 | ml-kem-768 | m4fstack | 73.9% | 73.3% | 68.1% |
 | frodo640 | frodokem640shake | 82.2% | 83.8% | 83.4% |
 | venom | venom640shake | 83.0% | 84.2% | 83.8% |
+| viper-128 | clean | 46.4% | 38.0% | 31.4% |
+| viper-192 | clean | 46.4% | 36.4% | 31.3% |
+| viper-256 | clean | 46.1% | 36.0% | 31.7% |
+| viper-384 | clean | 45.6% | 35.6% | 32.7% |
+| viper-512 | clean | 45.7% | 35.4% | 33.0% |
 ## Signature Schemes
 | Scheme | Implementation | Key Generation [%] | Sign [%] | Verify [%] |
 | ------ | -------------- | ------------------ | -------- | ---------- |
@@ -79,6 +94,11 @@
 | ml-kem-768 | m4fstack | 13,220 | 0 | 0 | 13,220 |
 | frodo640 | frodokem640shake | 8,980 | 0 | 0 | 8,980 |
 | venom | venom640shake | 10,556 | 0 | 0 | 10,556 |
+| viper-128 | clean | 6,500 | 0 | 0 | 6,500 |
+| viper-192 | clean | 6,864 | 0 | 0 | 6,864 |
+| viper-256 | clean | 6,816 | 0 | 0 | 6,816 |
+| viper-384 | clean | 6,656 | 0 | 0 | 6,656 |
+| viper-512 | clean | 6,712 | 0 | 0 | 6,712 |
 ## Signature Schemes
 | Scheme | Implementation | .text [bytes] | .data [bytes] | .bss [bytes] | Total [bytes] |
 | ------ | -------------- | ------------- | ------------- | ------------ | ------------- |

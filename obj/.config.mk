@@ -1,6 +1,6 @@
 # These variables are retained and can't be changed without a clean
-PLATFORM := mps2-an386
-LAST_PLATFORM := mps2-an386
+PLATFORM := nucleo-l4r5zi
+LAST_PLATFORM := nucleo-l4r5zi
 DEBUG := 
 LAST_DEBUG := 
 OPT_SIZE := 

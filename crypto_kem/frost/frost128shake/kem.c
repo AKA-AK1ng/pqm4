@@ -13,7 +13,7 @@
 #define DITHER_DOMAIN_PK 0xA1
 #define DITHER_DOMAIN_U  0xB1
 #define DITHER_DOMAIN_V  0xC1
-#define DITHER_BLOCK_WORDS 128
+#define DITHER_BLOCK_WORDS 128 /* words per squeeze chunk for streaming dither generation */
 
 #define PK_PACKED_BYTES ((PARAMS_PK_LOGP * PARAMS_N * PARAMS_NBAR) / 8)
 #define CT_C1_PACKED_BYTES ((PARAMS_U_LOGP * PARAMS_N * PARAMS_NBAR) / 8)

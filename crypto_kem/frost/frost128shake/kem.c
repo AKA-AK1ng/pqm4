@@ -7,13 +7,17 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "../../common/sha3/fips202.h"
-#include "../../common/random/random.h"
+#include "fips202.h"
+#include "randombytes.h"
+
+#include "api.h"
+#include "common.h"
+#include "params.h"
 
 #define DITHER_DOMAIN_PK 0xA1
 #define DITHER_DOMAIN_U  0xB1
 #define DITHER_DOMAIN_V  0xC1
-#define DITHER_BLOCK_WORDS 128 /* words per squeeze chunk for streaming dither generation */
+#define DITHER_BLOCK_WORDS 128
 
 #define PK_PACKED_BYTES ((PARAMS_PK_LOGP * PARAMS_N * PARAMS_NBAR) / 8)
 #define CT_C1_PACKED_BYTES ((PARAMS_U_LOGP * PARAMS_N * PARAMS_NBAR) / 8)
@@ -58,7 +62,7 @@ static void dither_init_stream(shake128incctx *state, const uint8_t *seed, size_
     shake128_inc_init(state);
     shake128_inc_absorb(state, in, 1 + seedlen);
     shake128_inc_finalize(state);
-    clear_bytes(in, sizeof(in));
+    frodo_clear_bytes(in, sizeof(in));
 }
 
 static void quantize_dithered_local(uint16_t *out, const uint16_t *in, size_t n, const uint8_t *seed, size_t seedlen, uint8_t domain, unsigned int logp)
@@ -78,14 +82,14 @@ static void quantize_dithered_local(uint16_t *out, const uint16_t *in, size_t n,
 
         shake128_inc_squeeze((uint8_t *)d, take * sizeof(uint16_t), &state);
         for (size_t i = 0; i < take; i++) {
-            uint16_t di = LE_TO_UINT16(d[i]) & mask;
+            uint16_t di = frodo_le_to_uint16(d[i]) & mask;
             out[offset + i] = quantize_local(in[offset + i], di, logp);
         }
         offset += take;
     }
 
-    clear_bytes((uint8_t *)d, sizeof(d));
-    clear_bytes((uint8_t *)&state, sizeof(state));
+    frodo_clear_bytes((uint8_t *)d, sizeof(d));
+    frodo_clear_bytes((uint8_t *)&state, sizeof(state));
 }
 
 static void reconstruct_dithered_local(uint16_t *normal, const uint16_t *split, size_t n, const uint8_t *seed, size_t seedlen, uint8_t domain, unsigned int logp)
@@ -105,17 +109,17 @@ static void reconstruct_dithered_local(uint16_t *normal, const uint16_t *split, 
 
         shake128_inc_squeeze((uint8_t *)d, take * sizeof(uint16_t), &state);
         for (size_t i = 0; i < take; i++) {
-            uint16_t di = LE_TO_UINT16(d[i]) & mask;
+            uint16_t di = frodo_le_to_uint16(d[i]) & mask;
             normal[offset + i] = (uint16_t)((reconstruct_local(split[offset + i], logp) - di) & q_mask_local());
         }
         offset += take;
     }
 
-    clear_bytes((uint8_t *)d, sizeof(d));
-    clear_bytes((uint8_t *)&state, sizeof(state));
+    frodo_clear_bytes((uint8_t *)d, sizeof(d));
+    frodo_clear_bytes((uint8_t *)&state, sizeof(state));
 }
 
-int crypto_kem_keypair(unsigned char *pk, unsigned char *sk)
+int crypto_kem_keypair(uint8_t *pk, uint8_t *sk)
 {
     uint8_t *pk_seedA = &pk[0];
     uint8_t *pk_b = &pk[BYTES_SEED_A];
@@ -125,7 +129,6 @@ int crypto_kem_keypair(unsigned char *pk, unsigned char *sk)
     uint8_t *sk_pkh = &sk[SK_OFFSET_PKH];
     uint16_t B[PARAMS_N * PARAMS_NBAR] = {0};
     uint16_t S[PARAMS_N * PARAMS_NBAR] = {0};
-    uint16_t E_zero[PARAMS_N * PARAMS_NBAR] = {0};
     uint8_t randomness[CRYPTO_BYTES + BYTES_SEED_SE + BYTES_SEED_A];
     uint8_t *randomness_s = &randomness[0];
     uint8_t *randomness_seedSE = &randomness[CRYPTO_BYTES];
@@ -145,31 +148,30 @@ int crypto_kem_keypair(unsigned char *pk, unsigned char *sk)
     shake128_inc_absorb(&state, shake_input_seedSE, 1 + BYTES_SEED_SE);
     shake128_inc_finalize(&state);
     shake128_inc_squeeze((uint8_t *)S, PARAMS_N * PARAMS_NBAR * sizeof(uint16_t), &state);
-    for (size_t i = 0; i < PARAMS_N * PARAMS_NBAR; i++) {
-        S[i] = LE_TO_UINT16(S[i]);
-    }
-    frodo_sample_n(S, PARAMS_N * PARAMS_NBAR);
 
+    frodo_sample_n(S, PARAMS_N * PARAMS_NBAR);
     memset(B, 0, sizeof(B));
-    frodo_mul_add_as_plus_e(B, S, E_zero, pk_seedA);
+    frodo_mul_add_as_plus_e(B, S, pk_seedA);
     quantize_dithered_local(B, B, PARAMS_N * PARAMS_NBAR, pk_seedA, BYTES_SEED_A, DITHER_DOMAIN_PK, PARAMS_PK_LOGP);
+
     frodo_pack(pk_b, PK_PACKED_BYTES, B, PARAMS_N * PARAMS_NBAR, PARAMS_PK_LOGP);
 
     memset(sk, 0, CRYPTO_SECRETKEYBYTES);
     memcpy(sk_s, randomness_s, CRYPTO_BYTES);
     memcpy(sk_pk, pk, CRYPTO_PUBLICKEYBYTES);
     memcpy(sk_seedSE, randomness_seedSE, BYTES_SEED_SE);
+
     shake(sk_pkh, BYTES_PKHASH, pk, CRYPTO_PUBLICKEYBYTES);
 
-    clear_bytes((uint8_t *)B, sizeof(B));
-    clear_bytes((uint8_t *)S, sizeof(S));
-    clear_bytes(randomness, CRYPTO_BYTES + BYTES_SEED_SE);
-    clear_bytes(shake_input_seedSE, sizeof(shake_input_seedSE));
-    clear_bytes((uint8_t *)&state, sizeof(state));
+    frodo_clear_bytes((uint8_t *)B, sizeof(B));
+    frodo_clear_bytes((uint8_t *)S, sizeof(S));
+    frodo_clear_bytes(randomness, CRYPTO_BYTES + BYTES_SEED_SE);
+    frodo_clear_bytes(shake_input_seedSE, sizeof(shake_input_seedSE));
+    frodo_clear_bytes((uint8_t *)&state, sizeof(state));
     return 0;
 }
 
-int crypto_kem_enc(unsigned char *ct, unsigned char *ss, const unsigned char *pk)
+int crypto_kem_enc(uint8_t *ct, uint8_t *ss, const uint8_t *pk)
 {
     const uint8_t *pk_seedA = &pk[0];
     const uint8_t *pk_b = &pk[BYTES_SEED_A];
@@ -182,9 +184,7 @@ int crypto_kem_enc(unsigned char *ct, unsigned char *ss, const unsigned char *pk
     uint16_t V_raw[PARAMS_NBAR * PARAMS_NBAR] = {0};
     uint16_t C_split[PARAMS_NBAR * PARAMS_NBAR] = {0};
     uint16_t C_enc[PARAMS_NBAR * PARAMS_NBAR] = {0};
-    uint16_t E_zero_nbar[PARAMS_NBAR * PARAMS_NBAR] = {0};
     uint16_t Sp[PARAMS_N * PARAMS_NBAR] = {0};
-    uint16_t E_zero[PARAMS_N * PARAMS_NBAR] = {0};
     uint8_t G2in[BYTES_PKHASH + BYTES_MU + BYTES_SALT];
     uint8_t *pkh = &G2in[0];
     uint8_t *mu = &G2in[BYTES_PKHASH];
@@ -206,17 +206,15 @@ int crypto_kem_enc(unsigned char *ct, unsigned char *ss, const unsigned char *pk
 
     shake_input_seedSE[0] = 0x96;
     memcpy(&shake_input_seedSE[1], seedSE, BYTES_SEED_SE);
+
     shake128_inc_init(&state);
     shake128_inc_absorb(&state, shake_input_seedSE, 1 + BYTES_SEED_SE);
     shake128_inc_finalize(&state);
     shake128_inc_squeeze((uint8_t *)Sp, PARAMS_N * PARAMS_NBAR * sizeof(uint16_t), &state);
-    for (size_t i = 0; i < PARAMS_N * PARAMS_NBAR; i++) {
-        Sp[i] = LE_TO_UINT16(Sp[i]);
-    }
-    frodo_sample_n(Sp, PARAMS_N * PARAMS_NBAR);
 
+    frodo_sample_n(Sp, PARAMS_N * PARAMS_NBAR);
     memset(Bp_raw, 0, sizeof(Bp_raw));
-    frodo_mul_add_sa_plus_e(Bp_raw, Sp, E_zero, pk_seedA);
+    frodo_mul_add_sa_plus_e(Bp_raw, Sp, pk_seedA);
     for (size_t i = 0; i < PARAMS_N * PARAMS_NBAR; i++) {
         Bp_raw[i] &= q_mask_local();
     }
@@ -226,7 +224,7 @@ int crypto_kem_enc(unsigned char *ct, unsigned char *ss, const unsigned char *pk
     frodo_unpack(B_split, PARAMS_N * PARAMS_NBAR, pk_b, PK_PACKED_BYTES, PARAMS_PK_LOGP);
     reconstruct_dithered_local(B_norm, B_split, PARAMS_N * PARAMS_NBAR, pk_seedA, BYTES_SEED_A, DITHER_DOMAIN_PK, PARAMS_PK_LOGP);
     memset(V_raw, 0, sizeof(V_raw));
-    frodo_mul_add_sb_plus_e(V_raw, B_norm, Sp, E_zero_nbar);
+    frodo_mul_add_sb_plus_e(V_raw, B_norm, Sp);
 
     frodo_key_encode(C_enc, (uint16_t *)mu);
     frodo_add(C_enc, V_raw, C_enc);
@@ -234,47 +232,45 @@ int crypto_kem_enc(unsigned char *ct, unsigned char *ss, const unsigned char *pk
     frodo_pack(ct_c2, CT_C2_PACKED_BYTES, C_split, PARAMS_NBAR * PARAMS_NBAR, PARAMS_V_LOGP);
 
     memcpy(&ct[CRYPTO_CIPHERTEXTBYTES - BYTES_SALT], salt, BYTES_SALT);
+
     memcpy(Fin_ct, ct, CRYPTO_CIPHERTEXTBYTES);
     memcpy(Fin_k, k, CRYPTO_BYTES);
     shake(ss, CRYPTO_BYTES, Fin, CRYPTO_CIPHERTEXTBYTES + CRYPTO_BYTES);
 
-    clear_bytes((uint8_t *)B_norm, sizeof(B_norm));
-    clear_bytes((uint8_t *)Bp_raw, sizeof(Bp_raw));
-    clear_bytes((uint8_t *)Bp_split, sizeof(Bp_split));
-    clear_bytes((uint8_t *)V_raw, sizeof(V_raw));
-    clear_bytes((uint8_t *)C_split, sizeof(C_split));
-    clear_bytes((uint8_t *)C_enc, sizeof(C_enc));
-    clear_bytes((uint8_t *)Sp, sizeof(Sp));
-    clear_bytes(mu, BYTES_MU);
-    clear_bytes(G2out, sizeof(G2out));
-    clear_bytes(Fin_k, CRYPTO_BYTES);
-    clear_bytes(shake_input_seedSE, sizeof(shake_input_seedSE));
-    clear_bytes((uint8_t *)&state, sizeof(state));
+    frodo_clear_bytes((uint8_t *)V_raw, sizeof(V_raw));
+    frodo_clear_bytes((uint8_t *)Sp, sizeof(Sp));
+    frodo_clear_bytes(mu, BYTES_MU);
+    frodo_clear_bytes(G2out, sizeof(G2out));
+    frodo_clear_bytes(Fin_k, CRYPTO_BYTES);
+    frodo_clear_bytes(shake_input_seedSE, sizeof(shake_input_seedSE));
+    frodo_clear_bytes((uint8_t *)&state, sizeof(state));
+    frodo_clear_bytes((uint8_t *)B_norm, sizeof(B_norm));
+    frodo_clear_bytes((uint8_t *)C_enc, sizeof(C_enc));
+    frodo_clear_bytes((uint8_t *)Bp_raw, sizeof(Bp_raw));
+    frodo_clear_bytes((uint8_t *)Bp_split, sizeof(Bp_split));
+    frodo_clear_bytes((uint8_t *)C_split, sizeof(C_split));
     return 0;
 }
 
-int crypto_kem_dec(unsigned char *ss, const unsigned char *ct, const unsigned char *sk)
+int crypto_kem_dec(uint8_t *ss, const uint8_t *ct, const uint8_t *sk)
 {
     uint16_t B_split[PARAMS_N * PARAMS_NBAR] = {0};
     uint16_t B_norm[PARAMS_N * PARAMS_NBAR] = {0};
     uint16_t Bp_split[PARAMS_N * PARAMS_NBAR] = {0};
     uint16_t Bp_norm[PARAMS_N * PARAMS_NBAR] = {0};
-    uint16_t BBp_raw[PARAMS_N * PARAMS_NBAR] = {0};
-    uint16_t BBp_split[PARAMS_N * PARAMS_NBAR] = {0};
+    uint16_t Bp_check[PARAMS_N * PARAMS_NBAR] = {0};
     uint16_t W[PARAMS_NBAR * PARAMS_NBAR] = {0};
     uint16_t C_split[PARAMS_NBAR * PARAMS_NBAR] = {0};
     uint16_t C_norm[PARAMS_NBAR * PARAMS_NBAR] = {0};
-    uint16_t CC[PARAMS_NBAR * PARAMS_NBAR] = {0};
-    uint16_t CC_split[PARAMS_NBAR * PARAMS_NBAR] = {0};
-    uint16_t E_zero[PARAMS_N * PARAMS_NBAR] = {0};
-    uint16_t E_zero_nbar[PARAMS_NBAR * PARAMS_NBAR] = {0};
+    uint16_t C_check[PARAMS_NBAR * PARAMS_NBAR] = {0};
+    uint16_t Sp[PARAMS_N * PARAMS_NBAR] = {0};
+    uint8_t shake_input_seedSE[1 + BYTES_SEED_SE];
     const uint8_t *ct_c1 = &ct[0];
     const uint8_t *ct_c2 = &ct[CT_C1_PACKED_BYTES];
-    const uint8_t *salt = &ct[CRYPTO_CIPHERTEXTBYTES - BYTES_SALT];
+    const uint8_t *ct_salt = &ct[CRYPTO_CIPHERTEXTBYTES - BYTES_SALT];
     const uint8_t *sk_s = &sk[SK_OFFSET_S];
     const uint8_t *sk_pk = &sk[SK_OFFSET_PK];
     const uint8_t *sk_seedSE = &sk[SK_OFFSET_SEEDSE];
-    uint16_t S[PARAMS_N * PARAMS_NBAR];
     const uint8_t *sk_pkh = &sk[SK_OFFSET_PKH];
     const uint8_t *pk_seedA = &sk_pk[0];
     const uint8_t *pk_b = &sk_pk[BYTES_SEED_A];
@@ -289,81 +285,77 @@ int crypto_kem_dec(unsigned char *ss, const unsigned char *ct, const unsigned ch
     uint8_t *Fin_ct = &Fin[0];
     uint8_t *Fin_k = &Fin[CRYPTO_CIPHERTEXTBYTES];
     uint8_t shake_input_seedSEprime[1 + BYTES_SEED_SE];
-    uint8_t shake_input_seedSE[1 + BYTES_SEED_SE];
-    uint16_t Sp[PARAMS_N * PARAMS_NBAR] = {0};
     shake128incctx state;
 
     shake_input_seedSE[0] = 0x5F;
     memcpy(&shake_input_seedSE[1], sk_seedSE, BYTES_SEED_SE);
-    shake128_inc_init(&state);
-    shake128_inc_absorb(&state, shake_input_seedSE, 1 + BYTES_SEED_SE);
-    shake128_inc_finalize(&state);
-    shake128_inc_squeeze((uint8_t *)S, PARAMS_N * PARAMS_NBAR * sizeof(uint16_t), &state);
-    for (size_t i = 0; i < PARAMS_N * PARAMS_NBAR; i++) {
-        S[i] = LE_TO_UINT16(S[i]);
-    }
-    frodo_sample_n(S, PARAMS_N * PARAMS_NBAR);
 
     frodo_unpack(Bp_split, PARAMS_N * PARAMS_NBAR, ct_c1, CT_C1_PACKED_BYTES, PARAMS_U_LOGP);
     frodo_unpack(C_split, PARAMS_NBAR * PARAMS_NBAR, ct_c2, CT_C2_PACKED_BYTES, PARAMS_V_LOGP);
-    reconstruct_dithered_local(Bp_norm, Bp_split, PARAMS_N * PARAMS_NBAR, salt, BYTES_SALT, DITHER_DOMAIN_U, PARAMS_U_LOGP);
-    reconstruct_dithered_local(C_norm, C_split, PARAMS_NBAR * PARAMS_NBAR, salt, BYTES_SALT, DITHER_DOMAIN_V, PARAMS_V_LOGP);
-    frodo_mul_bs(W, Bp_norm, S);
+    reconstruct_dithered_local(Bp_norm, Bp_split, PARAMS_N * PARAMS_NBAR, ct_salt, BYTES_SALT, DITHER_DOMAIN_U, PARAMS_U_LOGP);
+    reconstruct_dithered_local(C_norm, C_split, PARAMS_NBAR * PARAMS_NBAR, ct_salt, BYTES_SALT, DITHER_DOMAIN_V, PARAMS_V_LOGP);
+
+    shake128_inc_init(&state);
+    shake128_inc_absorb(&state, shake_input_seedSE, 1 + BYTES_SEED_SE);
+    shake128_inc_finalize(&state);
+    shake128_inc_squeeze((uint8_t *)Sp, PARAMS_N * PARAMS_NBAR * sizeof(uint16_t), &state);
+    frodo_sample_n(Sp, PARAMS_N * PARAMS_NBAR);
+
+    frodo_mul_bs(W, Bp_norm, Sp);
     frodo_sub(W, C_norm, W);
     frodo_key_decode((uint16_t *)muprime, W);
 
     memcpy(pkh, sk_pkh, BYTES_PKHASH);
-    memcpy(G2in_salt, salt, BYTES_SALT);
+    memcpy(G2in_salt, ct_salt, BYTES_SALT);
     shake(G2out, BYTES_SEED_SE + CRYPTO_BYTES, G2in, BYTES_PKHASH + BYTES_MU + BYTES_SALT);
 
     shake_input_seedSEprime[0] = 0x96;
     memcpy(&shake_input_seedSEprime[1], seedSEprime, BYTES_SEED_SE);
+
     shake128_inc_init(&state);
     shake128_inc_absorb(&state, shake_input_seedSEprime, 1 + BYTES_SEED_SE);
     shake128_inc_finalize(&state);
     shake128_inc_squeeze((uint8_t *)Sp, PARAMS_N * PARAMS_NBAR * sizeof(uint16_t), &state);
-    for (size_t i = 0; i < PARAMS_N * PARAMS_NBAR; i++) {
-        Sp[i] = LE_TO_UINT16(Sp[i]);
-    }
     frodo_sample_n(Sp, PARAMS_N * PARAMS_NBAR);
 
-    memset(BBp_raw, 0, sizeof(BBp_raw));
-    frodo_mul_add_sa_plus_e(BBp_raw, Sp, E_zero, pk_seedA);
+    memset(Bp_check, 0, sizeof(Bp_check));
+    frodo_mul_add_sa_plus_e(Bp_check, Sp, pk_seedA);
     for (size_t i = 0; i < PARAMS_N * PARAMS_NBAR; i++) {
-        BBp_raw[i] &= q_mask_local();
+        Bp_check[i] &= q_mask_local();
     }
-    quantize_dithered_local(BBp_split, BBp_raw, PARAMS_N * PARAMS_NBAR, salt, BYTES_SALT, DITHER_DOMAIN_U, PARAMS_U_LOGP);
+    quantize_dithered_local(Bp_check, Bp_check, PARAMS_N * PARAMS_NBAR, ct_salt, BYTES_SALT, DITHER_DOMAIN_U, PARAMS_U_LOGP);
 
+    memset(C_check, 0, sizeof(C_check));
     frodo_unpack(B_split, PARAMS_N * PARAMS_NBAR, pk_b, PK_PACKED_BYTES, PARAMS_PK_LOGP);
     reconstruct_dithered_local(B_norm, B_split, PARAMS_N * PARAMS_NBAR, pk_seedA, BYTES_SEED_A, DITHER_DOMAIN_PK, PARAMS_PK_LOGP);
-    frodo_mul_add_sb_plus_e(CC, B_norm, Sp, E_zero_nbar);
+    frodo_mul_add_sb_plus_e(C_check, B_norm, Sp);
     frodo_key_encode(W, (uint16_t *)muprime);
-    frodo_add(CC, CC, W);
-    quantize_dithered_local(CC_split, CC, PARAMS_NBAR * PARAMS_NBAR, salt, BYTES_SALT, DITHER_DOMAIN_V, PARAMS_V_LOGP);
+    frodo_add(C_check, C_check, W);
+    quantize_dithered_local(C_check, C_check, PARAMS_NBAR * PARAMS_NBAR, ct_salt, BYTES_SALT, DITHER_DOMAIN_V, PARAMS_V_LOGP);
 
     memcpy(Fin_ct, ct, CRYPTO_CIPHERTEXTBYTES);
     {
-        int8_t selector = ct_verify(Bp_split, BBp_split, PARAMS_N * PARAMS_NBAR) |
-                          ct_verify(C_split, CC_split, PARAMS_NBAR * PARAMS_NBAR);
-        ct_select((uint8_t *)Fin_k, (uint8_t *)kprime, (uint8_t *)sk_s, CRYPTO_BYTES, selector);
+        int8_t selector = frodo_ct_verify(Bp_split, Bp_check, PARAMS_N * PARAMS_NBAR) |
+                          frodo_ct_verify(C_split, C_check, PARAMS_NBAR * PARAMS_NBAR);
+        frodo_ct_select((uint8_t *)Fin_k, (uint8_t *)kprime, (uint8_t *)sk_s, CRYPTO_BYTES, selector);
     }
     shake(ss, CRYPTO_BYTES, Fin, CRYPTO_CIPHERTEXTBYTES + CRYPTO_BYTES);
 
-    clear_bytes((uint8_t *)B_norm, sizeof(B_norm));
-    clear_bytes((uint8_t *)Bp_norm, sizeof(Bp_norm));
-    clear_bytes((uint8_t *)BBp_raw, sizeof(BBp_raw));
-    clear_bytes((uint8_t *)BBp_split, sizeof(BBp_split));
-    clear_bytes((uint8_t *)W, sizeof(W));
-    clear_bytes((uint8_t *)C_norm, sizeof(C_norm));
-    clear_bytes((uint8_t *)CC, sizeof(CC));
-    clear_bytes((uint8_t *)CC_split, sizeof(CC_split));
-    clear_bytes((uint8_t *)Sp, sizeof(Sp));
-    clear_bytes((uint8_t *)S, sizeof(S));
-    clear_bytes(muprime, BYTES_MU);
-    clear_bytes(G2out, sizeof(G2out));
-    clear_bytes(Fin_k, CRYPTO_BYTES);
-    clear_bytes(shake_input_seedSEprime, sizeof(shake_input_seedSEprime));
-    clear_bytes(shake_input_seedSE, sizeof(shake_input_seedSE));
-    clear_bytes((uint8_t *)&state, sizeof(state));
+    frodo_clear_bytes((uint8_t *)W, sizeof(W));
+    frodo_clear_bytes((uint8_t *)Sp, sizeof(Sp));
+    frodo_clear_bytes(muprime, BYTES_MU);
+    frodo_clear_bytes(G2out, sizeof(G2out));
+    frodo_clear_bytes(Fin_k, CRYPTO_BYTES);
+    frodo_clear_bytes(shake_input_seedSE, sizeof(shake_input_seedSE));
+    frodo_clear_bytes(shake_input_seedSEprime, sizeof(shake_input_seedSEprime));
+    frodo_clear_bytes((uint8_t *)&state, sizeof(state));
+    frodo_clear_bytes((uint8_t *)B_split, sizeof(B_split));
+    frodo_clear_bytes((uint8_t *)B_norm, sizeof(B_norm));
+    frodo_clear_bytes((uint8_t *)Bp_split, sizeof(Bp_split));
+    frodo_clear_bytes((uint8_t *)Bp_norm, sizeof(Bp_norm));
+    frodo_clear_bytes((uint8_t *)Bp_check, sizeof(Bp_check));
+    frodo_clear_bytes((uint8_t *)C_split, sizeof(C_split));
+    frodo_clear_bytes((uint8_t *)C_norm, sizeof(C_norm));
+    frodo_clear_bytes((uint8_t *)C_check, sizeof(C_check));
     return 0;
 }

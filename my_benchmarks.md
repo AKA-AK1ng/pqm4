@@ -21,6 +21,7 @@
 | viper-256 (10 executions) | clean | AVG: 1,862,209 <br /> MIN: 1,859,804 <br /> MAX: 1,871,256 | AVG: 2,395,469 <br /> MIN: 2,393,036 <br /> MAX: 2,404,507 | AVG: 2,724,300 <br /> MIN: 2,721,847 <br /> MAX: 2,733,303 |
 | viper-384 (10 executions) | clean | AVG: 4,608,359 <br /> MIN: 4,601,190 <br /> MAX: 4,633,703 | AVG: 6,032,113 <br /> MIN: 6,024,976 <br /> MAX: 6,057,467 | AVG: 6,583,918 <br /> MIN: 6,576,633 <br /> MAX: 6,609,271 |
 | viper-512 (10 executions) | clean | AVG: 7,186,954 <br /> MIN: 7,181,104 <br /> MAX: 7,192,652 | AVG: 9,402,982 <br /> MIN: 9,397,221 <br /> MAX: 9,408,616 | AVG: 10,099,328 <br /> MIN: 10,093,704 <br /> MAX: 10,104,840 |
+| frost (10 executions) | frost128shake | AVG: 66,281,187 <br /> MIN: 66,281,187 <br /> MAX: 66,281,187 | AVG: 66,695,029 <br /> MIN: 66,695,029 <br /> MAX: 66,695,029 | AVG: 68,062,830 <br /> MIN: 68,062,830 <br /> MAX: 68,062,830 |
 ## Signature Schemes
 | scheme | implementation | key generation [cycles] | sign [cycles] | verify [cycles] |
 | ------ | -------------- | ----------------------- | ------------- | --------------- |
@@ -47,6 +48,7 @@
 | viper-256 | clean | 24,504 | 30,056 | 36,288 |
 | viper-384 | clean | 51,776 | 60,512 | 69,816 |
 | viper-512 | clean | 75,008 | 85,972 | 97,224 |
+| frost | frost128shake | 27,020 | 69,220 | 79,660 |
 ## Signature Schemes
 | Scheme | Implementation | Key Generation [bytes] | Sign [bytes] | Verify [bytes] |
 | ------ | -------------- | ---------------------- | ------------ | -------------- |
@@ -73,6 +75,7 @@
 | viper-256 | clean | 46.1% | 36.0% | 31.7% |
 | viper-384 | clean | 45.6% | 35.6% | 32.7% |
 | viper-512 | clean | 45.7% | 35.4% | 33.0% |
+| frost | frost128shake | 83.0% | 84.1% | 83.6% |
 ## Signature Schemes
 | Scheme | Implementation | Key Generation [%] | Sign [%] | Verify [%] |
 | ------ | -------------- | ------------------ | -------- | ---------- |
@@ -99,6 +102,7 @@
 | viper-256 | clean | 6,816 | 0 | 0 | 6,816 |
 | viper-384 | clean | 6,656 | 0 | 0 | 6,656 |
 | viper-512 | clean | 6,712 | 0 | 0 | 6,712 |
+| frost | frost128shake | 10,872 | 0 | 0 | 10,872 |
 ## Signature Schemes
 | Scheme | Implementation | .text [bytes] | .data [bytes] | .bss [bytes] | Total [bytes] |
 | ------ | -------------- | ------------- | ------------- | ------------ | ------------- |

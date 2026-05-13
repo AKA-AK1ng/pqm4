@@ -63,7 +63,7 @@ void frodo_mul_add_sb_plus_e(uint16_t *out, const uint16_t *b, const uint16_t *s
 }
 
 
-void add(uint16_t *out, const uint16_t *a, const uint16_t *b) {
+void frodo_add(uint16_t *out, const uint16_t *a, const uint16_t *b) {
     // Add a and b
     // Inputs: a, b (N_BAR x N_BAR)
     // Output: c = a + b
@@ -74,7 +74,7 @@ void add(uint16_t *out, const uint16_t *a, const uint16_t *b) {
 }
 
 
-void sub(uint16_t *out, const uint16_t *a, const uint16_t *b) {
+void frodo_sub(uint16_t *out, const uint16_t *a, const uint16_t *b) {
     // Subtract a and b
     // Inputs: a, b (N_BAR x N_BAR)
     // Output: c = a - b

@@ -1,20 +1,30 @@
 /********************************************************************************************
 * FrodoKEM: Learning with Errors Key Encapsulation
 *
-* Abstract: secret and ephemeral sampling functions
+* Abstract: noise sampling functions
 *********************************************************************************************/
 
-#include <stddef.h>
 #include <stdint.h>
 
+#include "api.h"
+#include "common.h"
+#include "params.h"
 
-void frodo_sample_n(uint16_t *s, const size_t n)
-{ // Fills vector s with n samples from the centered binomial distribution B_2.
-  // Input: pseudo-random 16-bit values passed in s. The input is overwritten by the output.
-    for (size_t i = 0; i < n; ++i) {
-        uint16_t x = s[i];
-        uint16_t a = (x & 0x1u) + ((x >> 1) & 0x1u);
-        uint16_t b = ((x >> 2) & 0x1u) + ((x >> 3) & 0x1u);
-        s[i] = (uint16_t)(a - b);
+static uint16_t CDF_TABLE[CDF_TABLE_LEN] = CDF_TABLE_DATA;
+
+void frodo_sample_n(uint16_t *s, size_t n)
+{
+    size_t i;
+    unsigned int j;
+
+    for (i = 0; i < n; ++i) {
+        uint16_t sample = 0;
+        uint16_t prnd = s[i] >> 1;
+        uint16_t sign = s[i] & 0x1;
+
+        for (j = 0; j < (unsigned int)(CDF_TABLE_LEN - 1); j++) {
+            sample += (uint16_t)(CDF_TABLE[j] - prnd) >> 15;
+        }
+        s[i] = ((-sign) ^ sample) + sign;
     }
 }

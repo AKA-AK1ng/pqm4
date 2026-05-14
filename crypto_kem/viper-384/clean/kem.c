@@ -21,7 +21,7 @@ static void unpack_pk(mlwq_pk *pk, const unsigned char *in)
     for (int i = 0; i < MLWQ_K; i++)
         ref_poly_frombytes(&pk->b_q.vec[i], in + i * MLWQ_POLYBYTES);
     memcpy(pk->seed_A, in + MLWQ_POLYVECBYTES, SEEDBYTES);
-    memset(pk->seed_d, 0, SEEDBYTES);
+    derive_seed_d(pk->seed_d, pk->seed_A); 
 }
 
 static void pack_sk(unsigned char *out, const mlwq_kem_sk *sk,

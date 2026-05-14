@@ -21,7 +21,7 @@ static void unpack_pk(mlwq_pk *pk, const unsigned char *in)
     for (int i = 0; i < MLWQ_K; i++)
         ref_poly_frombytes(&pk->b_q.vec[i], in + i * MLWQ_POLYBYTES);
     memcpy(pk->seed_A, in + MLWQ_POLYVECBYTES, SEEDBYTES);
-    memset(pk->seed_d, 0, SEEDBYTES);
+    derive_seed_d(pk->seed_d, pk->seed_A); 
 }
 
 static void pack_sk(unsigned char *out, const mlwq_kem_sk *sk,
@@ -39,6 +39,16 @@ static void pack_sk(unsigned char *out, const mlwq_kem_sk *sk,
     memcpy(out + MLWQ_POLYVECBYTES + MLWQ_PUBLICKEYBYTES + HASHBYTES, sk->z,
         SEEDBYTES);
 }
+// static void pack_sk(unsigned char *out, const mlwq_kem_sk *sk,
+//                     const unsigned char *pk_bytes)
+// {
+//     for (int i = 0; i < MLWQ_K; i++)
+//         ref_poly_tobytes(out + i * MLWQ_POLYBYTES, &sk->pke_sk.s.vec[i]);
+
+//     memcpy(out + MLWQ_POLYVECBYTES, pk_bytes, MLWQ_PUBLICKEYBYTES);
+//     memcpy(out + MLWQ_POLYVECBYTES + MLWQ_PUBLICKEYBYTES, sk->h_pk, HASHBYTES);
+//     memcpy(out + MLWQ_POLYVECBYTES + MLWQ_PUBLICKEYBYTES + HASHBYTES, sk->z, SEEDBYTES);
+// }
 
 static void unpack_sk(mlwq_kem_sk *sk, const unsigned char *in)
 {
@@ -61,6 +71,20 @@ static void unpack_sk(mlwq_kem_sk *sk, const unsigned char *in)
         in + MLWQ_POLYVECBYTES + MLWQ_PUBLICKEYBYTES + HASHBYTES,
         SEEDBYTES);
 }
+// static void unpack_sk(mlwq_kem_sk *sk, const unsigned char *in)
+// {
+//     for (int i = 0; i < MLWQ_K; i++) {
+//         ref_poly_frombytes(&sk->pke_sk.s.vec[i], in + i * MLWQ_POLYBYTES);
+//         for (int j = 0; j < MLWQ_N; j++) {
+//             uint16_t v = (uint16_t)sk->pke_sk.s.vec[i].coeffs[j];
+//             if (v > MLWQ_Q / 2)
+//                 sk->pke_sk.s.vec[i].coeffs[j] = (int16_t)(v - MLWQ_Q);
+//         }
+//     }
+//     unpack_pk(&sk->pk, in + MLWQ_POLYVECBYTES);
+//     memcpy(sk->h_pk, in + MLWQ_POLYVECBYTES + MLWQ_PUBLICKEYBYTES, HASHBYTES);
+//     memcpy(sk->z,   in + MLWQ_POLYVECBYTES + MLWQ_PUBLICKEYBYTES + HASHBYTES, SEEDBYTES);
+// }
 
 static void pack_ct(unsigned char *out, const mlwq_ciphertext *ct)
 {

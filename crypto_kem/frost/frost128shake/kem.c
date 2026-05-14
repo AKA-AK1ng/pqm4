@@ -231,6 +231,7 @@ int crypto_kem_enc(uint8_t *ct, uint8_t *ss, const uint8_t *pk)
     frodo_quantize_dithered_local(C_split, C_enc, PARAMS_NBAR * PARAMS_NBAR, salt, BYTES_SALT, DITHER_DOMAIN_V, PARAMS_V_LOGP);
     frodo_pack(ct_c2, CT_C2_PACKED_BYTES, C_split, PARAMS_NBAR * PARAMS_NBAR, PARAMS_V_LOGP);
 
+    // 加入salt到密文中
     memcpy(&ct[CRYPTO_CIPHERTEXTBYTES - BYTES_SALT], salt, BYTES_SALT);
 
     memcpy(Fin_ct, ct, CRYPTO_CIPHERTEXTBYTES);

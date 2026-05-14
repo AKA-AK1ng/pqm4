@@ -2,7 +2,7 @@
 .cpu cortex-m4
 .thumb
 
-// void cmov_int16(int16_t *r, int16_t v, uint16_t b)
+// void cmov_int16(int16_t *r, int16_t v, uint16_t b)   poly.c
 .global cmov_int16
 .type cmov_int16, %function
 .align 2

@@ -131,6 +131,7 @@ int crypto_kem_enc(uint8_t *ct, uint8_t *ss, const uint8_t *pk) {
     pack(ct_c2, (PARAMS_LOGQ * PARAMS_NBAR * PARAMS_NBAR) / 8, C, PARAMS_NBAR * PARAMS_NBAR, PARAMS_LOGQ);
 
     // Compute ss = F(ct||KK)
+    // 未加入salt到密文中
     memcpy(Fin_ct, ct, CRYPTO_CIPHERTEXTBYTES);
     memcpy(Fin_k, k, CRYPTO_BYTES);
     shake(ss, CRYPTO_BYTES, Fin, CRYPTO_CIPHERTEXTBYTES + CRYPTO_BYTES);

@@ -85,14 +85,17 @@ void ref_mlwq_encrypt(mlwq_ciphertext *ct, const mlwq_pk *pk, const uint8_t *msg
     d_seed[32] = 11;
     ref_xof_expand_poly(&d_v, d_seed, MLWQ_Q);
 
+
     poly_vec Atr;
-    for (int i = 0; i < MLWQ_K; ++i) {
-        poly_vec A_col_i;
-        for (int j = 0; j < MLWQ_K; ++j) {
-            A_col_i.vec[j] = A.row[j].vec[i];
-        }
-        ref_poly_vec_transpose_mul(&Atr.vec[i], &A_col_i, &r);
-    }
+    ref_poly_matrix_transpose_vec_mul(&Atr, &A, &r);
+    // poly_vec Atr;
+    // for (int i = 0; i < MLWQ_K; ++i) {
+    //     poly_vec A_col_i;
+    //     for (int j = 0; j < MLWQ_K; ++j) {
+    //         A_col_i.vec[j] = A.row[j].vec[i];
+    //     }
+    //     ref_poly_vec_transpose_mul(&Atr.vec[i], &A_col_i, &r);
+    // }
     // poly_matrix At;
     // for(int i=0; i<MLWQ_K; ++i) for(int j=0; j<MLWQ_K; ++j) At.row[i].vec[j] = A.row[j].vec[i];
     // poly_vec Atr;

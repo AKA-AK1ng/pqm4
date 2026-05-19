@@ -11,6 +11,7 @@ void ref_poly_quantize(poly *res, const poly *v, const poly *d, int32_t P);
 void ref_poly_dequantize(poly *res, const poly *b, int32_t P);
 
 void ref_poly_vec_transpose_mul(poly *res, const poly_vec *a_t, const poly_vec *b);
+void ref_poly_matrix_transpose_vec_mul(poly_vec *res, const poly_matrix *A, const poly_vec *r);
 void ref_poly_matrix_vec_mul(poly_vec *res, const poly_matrix *A, const poly_vec *s);
 
 void ref_poly_msg_encode(poly *res, const uint8_t *msg);

@@ -201,6 +201,34 @@ void ref_poly_vec_transpose_mul(poly *res, const poly_vec *a_t, const poly_vec *
     for(int k=0; k<MLWQ_N; k++) res->coeffs[k] = barrett_reduce(acc.coeffs[k]);
 }
 
+void ref_poly_matrix_transpose_vec_mul(poly_vec *res,
+                                        const poly_matrix *A,
+                                        const poly_vec *r)
+{
+    // NTT(r) 只做一次，K 次
+    poly_vec r_ntt = *r;
+    for (int i = 0; i < MLWQ_K; i++)
+        poly_ntt(&r_ntt.vec[i]);
+
+    // 按列计算 A^T 的每一行与 r 的内积
+    for (int i = 0; i < MLWQ_K; ++i) {
+        poly acc;
+        for (int k = 0; k < MLWQ_N; k++) acc.coeffs[k] = 0;
+
+        for (int j = 0; j < MLWQ_K; ++j) {
+            poly a_ntt = A->row[j].vec[i];   // A 的第 i 列第 j 个元素
+            poly_ntt(&a_ntt);
+            poly t;
+            poly_basemul(&t, &a_ntt, &r_ntt.vec[j]);
+            for (int k = 0; k < MLWQ_N; k++) acc.coeffs[k] += t.coeffs[k];
+        }
+
+        poly_invntt(&acc);
+        for (int k = 0; k < MLWQ_N; k++)
+            res->vec[i].coeffs[k] = barrett_reduce(acc.coeffs[k]);
+    }
+}
+
 // -------------------------------------------------------------------------
 // 5. 消息编码/解码
 // -------------------------------------------------------------------------

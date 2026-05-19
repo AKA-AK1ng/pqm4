@@ -20,11 +20,13 @@
 | viper-192 (10 executions) | clean | AVG: 1,185,669 <br /> MIN: 1,185,397 <br /> MAX: 1,186,138 | AVG: 1,429,904 <br /> MIN: 1,429,600 <br /> MAX: 1,430,334 | AVG: 1,678,774 <br /> MIN: 1,678,468 <br /> MAX: 1,679,232 |
 | viper-256 (10 executions) | clean | AVG: 1,860,947 <br /> MIN: 1,859,385 <br /> MAX: 1,870,624 | AVG: 2,149,038 <br /> MIN: 2,147,461 <br /> MAX: 2,158,693 | AVG: 2,472,688 <br /> MIN: 2,471,094 <br /> MAX: 2,482,347 |
 | viper-384 (10 executions) | clean | AVG: 4,610,590 <br /> MIN: 4,601,282 <br /> MAX: 4,623,428 | AVG: 5,138,591 <br /> MIN: 5,129,305 <br /> MAX: 5,151,386 | AVG: 5,656,725 <br /> MIN: 5,647,376 <br /> MAX: 5,669,415 |
-| viper-512 (10 executions) | clean | AVG: 7,188,069 <br /> MIN: 7,180,848 <br /> MAX: 7,202,947 | AVG: 9,414,454 <br /> MIN: 9,407,330 <br /> MAX: 9,429,405 | AVG: 10,110,834 <br /> MIN: 10,103,773 <br /> MAX: 10,125,969 |
+| viper-512 (10 executions) | clean | AVG: 7,192,548 <br /> MIN: 7,181,092 <br /> MAX: 7,224,715 | AVG: 7,823,369 <br /> MIN: 7,811,925 <br /> MAX: 7,855,613 | AVG: 8,503,943 <br /> MIN: 8,492,429 <br /> MAX: 8,536,043 |
 | frost (10 executions) | frost128shake | AVG: 66,281,187 <br /> MIN: 66,281,187 <br /> MAX: 66,281,187 | AVG: 66,695,029 <br /> MIN: 66,695,029 <br /> MAX: 66,695,029 | AVG: 68,062,830 <br /> MIN: 68,062,830 <br /> MAX: 68,062,830 |
 ## Signature Schemes
 | scheme | implementation | key generation [cycles] | sign [cycles] | verify [cycles] |
 | ------ | -------------- | ----------------------- | ------------- | --------------- |
+| dilithium2 (10 executions) | m4f | AVG: 1,361,963 <br /> MIN: 1,345,411 <br /> MAX: 1,386,726 | AVG: 3,747,917 <br /> MIN: 1,719,980 <br /> MAX: 8,319,176 | AVG: 1,343,594 <br /> MIN: 1,343,296 <br /> MAX: 1,343,807 |
+| dilithium3 (10 executions) | m4f | AVG: 2,394,739 <br /> MIN: 2,393,778 <br /> MAX: 2,395,569 | AVG: 5,689,854 <br /> MIN: 3,478,687 <br /> MAX: 8,251,330 | AVG: 2,289,937 <br /> MIN: 2,289,687 <br /> MAX: 2,290,155 |
 # Memory Evaluation
 ## Key Encapsulation Schemes
 | Scheme | Implementation | Key Generation [bytes] | Encapsulation [bytes] | Decapsulation [bytes] |
@@ -47,11 +49,13 @@
 | viper-192 | clean | 17,504 | 26,624 | 31,856 |
 | viper-256 | clean | 24,504 | 38,240 | 44,472 |
 | viper-384 | clean | 51,776 | 85,576 | 94,880 |
-| viper-512 | clean | 75,008 | 85,932 | 97,224 |
+| viper-512 | clean | 75,008 | 85,816 | 97,168 |
 | frost | frost128shake | 27,020 | 69,220 | 79,660 |
 ## Signature Schemes
 | Scheme | Implementation | Key Generation [bytes] | Sign [bytes] | Verify [bytes] |
 | ------ | -------------- | ---------------------- | ------------ | -------------- |
+| dilithium2 | m4f | 38,264 | 49,344 | 36,176 |
+| dilithium3 | m4f | 60,792 | 68,792 | 57,788 |
 # Hashing Evaluation
 ## Key Encapsulation Schemes
 | Scheme | Implementation | Key Generation [%] | Encapsulation [%] | Decapsulation [%] |
@@ -74,11 +78,13 @@
 | viper-192 | clean | 46.3% | 40.1% | 34.2% |
 | viper-256 | clean | 46.1% | 40.6% | 35.3% |
 | viper-384 | clean | 45.6% | 42.0% | 38.1% |
-| viper-512 | clean | 45.6% | 35.5% | 33.0% |
+| viper-512 | clean | 45.7% | 42.7% | 39.3% |
 | frost | frost128shake | 83.0% | 84.1% | 83.6% |
 ## Signature Schemes
 | Scheme | Implementation | Key Generation [%] | Sign [%] | Verify [%] |
 | ------ | -------------- | ------------------ | -------- | ---------- |
+| dilithium2 | m4f | 79.8% | 58.4% | 77.1% |
+| dilithium3 | m4f | 82.3% | 63.4% | 79.6% |
 # Size Evaluation
 ## Key Encapsulation Schemes
 | Scheme | Implementation | .text [bytes] | .data [bytes] | .bss [bytes] | Total [bytes] |
@@ -101,8 +107,10 @@
 | viper-192 | clean | 6,988 | 0 | 0 | 6,988 |
 | viper-256 | clean | 7,036 | 0 | 0 | 7,036 |
 | viper-384 | clean | 6,692 | 0 | 0 | 6,692 |
-| viper-512 | clean | 6,784 | 0 | 0 | 6,784 |
+| viper-512 | clean | 6,892 | 0 | 0 | 6,892 |
 | frost | frost128shake | 10,872 | 0 | 0 | 10,872 |
 ## Signature Schemes
 | Scheme | Implementation | .text [bytes] | .data [bytes] | .bss [bytes] | Total [bytes] |
 | ------ | -------------- | ------------- | ------------- | ------------ | ------------- |
+| dilithium2 | m4f | 18,428 | 0 | 0 | 18,428 |
+| dilithium3 | m4f | 19,904 | 0 | 0 | 19,904 |

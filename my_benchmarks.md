@@ -22,6 +22,15 @@
 | viper-384 (10 executions) | clean | AVG: 4,610,590 <br /> MIN: 4,601,282 <br /> MAX: 4,623,428 | AVG: 5,138,591 <br /> MIN: 5,129,305 <br /> MAX: 5,151,386 | AVG: 5,656,725 <br /> MIN: 5,647,376 <br /> MAX: 5,669,415 |
 | viper-512 (10 executions) | clean | AVG: 7,192,548 <br /> MIN: 7,181,092 <br /> MAX: 7,224,715 | AVG: 7,823,369 <br /> MIN: 7,811,925 <br /> MAX: 7,855,613 | AVG: 8,503,943 <br /> MIN: 8,492,429 <br /> MAX: 8,536,043 |
 | frost (10 executions) | frost128shake | AVG: 66,281,187 <br /> MIN: 66,281,187 <br /> MAX: 66,281,187 | AVG: 66,695,029 <br /> MIN: 66,695,029 <br /> MAX: 66,695,029 | AVG: 68,062,830 <br /> MIN: 68,062,830 <br /> MAX: 68,062,830 |
+| firesaber (10 executions) | clean | AVG: 3,576,179 <br /> MIN: 3,576,179 <br /> MAX: 3,576,179 | AVG: 4,442,397 <br /> MIN: 4,442,397 <br /> MAX: 4,442,397 | AVG: 5,078,133 <br /> MIN: 5,078,133 <br /> MAX: 5,078,133 |
+| firesaber (10 executions) | m4fspeed | AVG: 865,077 <br /> MIN: 865,077 <br /> MAX: 865,077 | AVG: 1,046,091 <br /> MIN: 1,046,091 <br /> MAX: 1,046,091 | AVG: 1,017,986 <br /> MIN: 1,017,986 <br /> MAX: 1,017,986 |
+| firesaber (10 executions) | m4fstack | AVG: 1,190,264 <br /> MIN: 1,190,264 <br /> MAX: 1,190,264 | AVG: 1,456,600 <br /> MIN: 1,456,600 <br /> MAX: 1,456,600 | AVG: 1,462,402 <br /> MIN: 1,462,402 <br /> MAX: 1,462,402 |
+| lightsaber (10 executions) | clean | AVG: 973,309 <br /> MIN: 973,309 <br /> MAX: 973,309 | AVG: 1,424,024 <br /> MIN: 1,424,024 <br /> MAX: 1,424,024 | AVG: 1,748,255 <br /> MIN: 1,748,255 <br /> MAX: 1,748,255 |
+| lightsaber (10 executions) | m4fspeed | AVG: 305,992 <br /> MIN: 305,992 <br /> MAX: 305,992 | AVG: 416,563 <br /> MIN: 416,563 <br /> MAX: 416,563 | AVG: 401,807 <br /> MIN: 401,807 <br /> MAX: 401,807 |
+| lightsaber (10 executions) | m4fstack | AVG: 376,226 <br /> MIN: 376,226 <br /> MAX: 376,226 | AVG: 526,885 <br /> MIN: 526,885 <br /> MAX: 526,885 | AVG: 530,268 <br /> MIN: 530,268 <br /> MAX: 530,268 |
+| saber (9 executions) | clean | AVG: 2,040,005 <br /> MIN: 2,040,005 <br /> MAX: 2,040,005 | AVG: 2,726,476 <br /> MIN: 2,726,476 <br /> MAX: 2,726,476 | AVG: 3,221,340 <br /> MIN: 3,221,340 <br /> MAX: 3,221,340 |
+| saber (10 executions) | m4fspeed | AVG: 559,745 <br /> MIN: 559,745 <br /> MAX: 559,745 | AVG: 710,636 <br /> MIN: 710,636 <br /> MAX: 710,636 | AVG: 684,930 <br /> MIN: 684,930 <br /> MAX: 684,930 |
+| saber (10 executions) | m4fstack | AVG: 734,574 <br /> MIN: 734,574 <br /> MAX: 734,574 | AVG: 947,527 <br /> MIN: 947,527 <br /> MAX: 947,527 | AVG: 947,575 <br /> MIN: 947,575 <br /> MAX: 947,575 |
 ## Signature Schemes
 | scheme | implementation | key generation [cycles] | sign [cycles] | verify [cycles] |
 | ------ | -------------- | ----------------------- | ------------- | --------------- |
@@ -51,6 +60,15 @@
 | viper-384 | clean | 51,776 | 85,576 | 94,880 |
 | viper-512 | clean | 75,008 | 85,816 | 97,168 |
 | frost | frost128shake | 27,020 | 69,220 | 79,660 |
+| firesaber | clean | 19,368 | 22,512 | 23,992 |
+| firesaber | m4fspeed | 7,664 | 8,336 | 8,344 |
+| firesaber | m4fstack | 4,296 | 3,312 | 3,320 |
+| lightsaber | clean | 9,332 | 11,452 | 12,196 |
+| lightsaber | m4fspeed | 5,608 | 6,272 | 6,280 |
+| lightsaber | m4fstack | 3,272 | 3,048 | 3,056 |
+| saber | clean | 12,940 | 15,572 | 16,668 |
+| saber | m4fspeed | 6,640 | 7,304 | 7,312 |
+| saber | m4fstack | 3,784 | 3,176 | 3,184 |
 ## Signature Schemes
 | Scheme | Implementation | Key Generation [bytes] | Sign [bytes] | Verify [bytes] |
 | ------ | -------------- | ---------------------- | ------------ | -------------- |
@@ -80,6 +98,15 @@
 | viper-384 | clean | 45.6% | 42.0% | 38.1% |
 | viper-512 | clean | 45.7% | 42.7% | 39.3% |
 | frost | frost128shake | 83.0% | 84.1% | 83.6% |
+| firesaber | clean | 16.2% | 16.1% | 11.9% |
+| firesaber | m4fspeed | 67.2% | 68.4% | 59.2% |
+| firesaber | m4fstack | 48.9% | 49.2% | 41.2% |
+| lightsaber | clean | 21.4% | 20.5% | 13.1% |
+| lightsaber | m4fspeed | 68.1% | 69.9% | 57.1% |
+| lightsaber | m4fstack | 55.5% | 55.3% | 43.3% |
+| saber | clean | 18.8% | 18.2% | 12.5% |
+| saber | m4fspeed | 68.5% | 69.9% | 59.0% |
+| saber | m4fstack | 52.2% | 52.5% | 42.7% |
 ## Signature Schemes
 | Scheme | Implementation | Key Generation [%] | Sign [%] | Verify [%] |
 | ------ | -------------- | ------------------ | -------- | ---------- |
@@ -109,6 +136,15 @@
 | viper-384 | clean | 6,692 | 0 | 0 | 6,692 |
 | viper-512 | clean | 6,892 | 0 | 0 | 6,892 |
 | frost | frost128shake | 10,872 | 0 | 0 | 10,872 |
+| firesaber | clean | 10,000 | 0 | 0 | 10,000 |
+| firesaber | m4fspeed | 18,768 | 0 | 0 | 18,768 |
+| firesaber | m4fstack | 19,528 | 0 | 0 | 19,528 |
+| lightsaber | clean | 10,184 | 0 | 0 | 10,184 |
+| lightsaber | m4fspeed | 18,892 | 0 | 0 | 18,892 |
+| lightsaber | m4fstack | 19,724 | 0 | 0 | 19,724 |
+| saber | clean | 9,944 | 0 | 0 | 9,944 |
+| saber | m4fspeed | 18,688 | 0 | 0 | 18,688 |
+| saber | m4fstack | 19,428 | 0 | 0 | 19,428 |
 ## Signature Schemes
 | Scheme | Implementation | .text [bytes] | .data [bytes] | .bss [bytes] | Total [bytes] |
 | ------ | -------------- | ------------- | ------------- | ------------ | ------------- |

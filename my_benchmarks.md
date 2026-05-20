@@ -28,7 +28,7 @@
 | lightsaber (10 executions) | clean | AVG: 973,309 <br /> MIN: 973,309 <br /> MAX: 973,309 | AVG: 1,424,024 <br /> MIN: 1,424,024 <br /> MAX: 1,424,024 | AVG: 1,748,255 <br /> MIN: 1,748,255 <br /> MAX: 1,748,255 |
 | lightsaber (10 executions) | m4fspeed | AVG: 305,992 <br /> MIN: 305,992 <br /> MAX: 305,992 | AVG: 416,563 <br /> MIN: 416,563 <br /> MAX: 416,563 | AVG: 401,807 <br /> MIN: 401,807 <br /> MAX: 401,807 |
 | lightsaber (10 executions) | m4fstack | AVG: 376,226 <br /> MIN: 376,226 <br /> MAX: 376,226 | AVG: 526,885 <br /> MIN: 526,885 <br /> MAX: 526,885 | AVG: 530,268 <br /> MIN: 530,268 <br /> MAX: 530,268 |
-| saber (9 executions) | clean | AVG: 2,040,005 <br /> MIN: 2,040,005 <br /> MAX: 2,040,005 | AVG: 2,726,476 <br /> MIN: 2,726,476 <br /> MAX: 2,726,476 | AVG: 3,221,340 <br /> MIN: 3,221,340 <br /> MAX: 3,221,340 |
+| saber (10 executions) | clean | AVG: 2,040,005 <br /> MIN: 2,040,005 <br /> MAX: 2,040,005 | AVG: 2,726,476 <br /> MIN: 2,726,476 <br /> MAX: 2,726,476 | AVG: 3,221,340 <br /> MIN: 3,221,340 <br /> MAX: 3,221,340 |
 | saber (10 executions) | m4fspeed | AVG: 559,745 <br /> MIN: 559,745 <br /> MAX: 559,745 | AVG: 710,636 <br /> MIN: 710,636 <br /> MAX: 710,636 | AVG: 684,930 <br /> MIN: 684,930 <br /> MAX: 684,930 |
 | saber (10 executions) | m4fstack | AVG: 734,574 <br /> MIN: 734,574 <br /> MAX: 734,574 | AVG: 947,527 <br /> MIN: 947,527 <br /> MAX: 947,527 | AVG: 947,575 <br /> MIN: 947,575 <br /> MAX: 947,575 |
 ## Signature Schemes

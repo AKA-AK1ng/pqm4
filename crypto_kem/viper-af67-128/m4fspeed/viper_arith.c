@@ -7,6 +7,14 @@
 #include <stdint.h>
 #include <string.h>
 
+extern void __asm_poly_add_32(uint32_t *des, uint32_t *src1, uint32_t *src2);
+
+static int ntt_bound_add_ok(uint64_t *bound, uint16_t max_a, uint16_t max_b)
+{
+  *bound += (uint64_t)max_a * max_b * VIPER_N;
+  return *bound < (uint64_t)(Q1Q2 / 2);
+}
+
 static void center_poly(int16_t out[VIPER_N], const vpoly in)
 {
   for (size_t i = 0; i < VIPER_N; i++) {
@@ -54,6 +62,7 @@ static void poly_mul_m4ntt_core(vpoly c, const vpoly a, const vpoly b)
 {
   int16_t a_center[VIPER_N];
   int16_t b_center[VIPER_N];
+  uint64_t bound = 0;
   uint32_t a_ntt[VIPER_N];
   uint32_t b_ntt[VIPER_N];
   uint32_t prod_ntt[VIPER_N];
@@ -62,7 +71,7 @@ static void poly_mul_m4ntt_core(vpoly c, const vpoly a, const vpoly b)
   center_poly(a_center, a);
   center_poly(b_center, b);
 
-  if ((uint32_t)max_abs_poly(a_center) * max_abs_poly(b_center) * VIPER_N >= (uint32_t)(Q1Q2 / 2)) {
+  if (!ntt_bound_add_ok(&bound, max_abs_poly(a_center), max_abs_poly(b_center))) {
     poly_mul_schoolbook_centered(c, a_center, b_center);
     return;
   }
@@ -82,37 +91,95 @@ void poly_mul_m4ntt(vpoly c, const vpoly a, const vpoly b)
   poly_mul_m4ntt_core(c, a, b);
 }
 
-void matvec_m4ntt(vpolyvec out, vpoly A[VIPER_K][VIPER_K], const vpolyvec s)
+static void add_product_ntt(uint32_t acc[VIPER_N], const uint32_t a_ntt[VIPER_N], const uint32_t b_ntt[VIPER_N], int first)
+{
+  uint32_t prod_ntt[VIPER_N];
+
+  NTT_mul_32(prod_ntt, (uint32_t *)a_ntt, (uint32_t *)b_ntt);
+  if (first) {
+    memcpy(acc, prod_ntt, sizeof(prod_ntt));
+  } else {
+    __asm_poly_add_32(acc, acc, prod_ntt);
+  }
+}
+
+static void finish_acc_ntt(vpoly out, uint32_t acc_ntt[VIPER_N])
+{
+  uint16_t acc[VIPER_N];
+
+  NTT_inv_32(acc, acc_ntt);
+  for (size_t i = 0; i < VIPER_N; i++) {
+    out[i] = (uint16_t)(acc[i] & VIPER_Q_MASK);
+  }
+}
+
+static void matvec_fallback(vpolyvec out, vpoly A[VIPER_K][VIPER_K], const vpolyvec s, int transpose)
 {
   vpoly t;
+
   for (size_t i = 0; i < VIPER_K; i++) {
     memset(out[i], 0, sizeof(vpoly));
     for (size_t j = 0; j < VIPER_K; j++) {
-      poly_mul_m4ntt(t, A[i][j], s[j]);
+      poly_mul_m4ntt(t, transpose ? A[j][i] : A[i][j], s[j]);
       for (size_t k = 0; k < VIPER_N; k++) {
         out[i][k] = (uint16_t)((out[i][k] + t[k]) & VIPER_Q_MASK);
       }
     }
   }
+}
+
+static void prepare_vector_ntt(uint32_t out_ntt[VIPER_K][VIPER_N], uint16_t out_max[VIPER_K], const vpolyvec in)
+{
+  for (size_t i = 0; i < VIPER_K; i++) {
+    int16_t centered[VIPER_N];
+    center_poly(centered, in[i]);
+    out_max[i] = max_abs_poly(centered);
+    NTT_forward_32(out_ntt[i], (uint16_t *)centered);
+  }
+}
+
+static void matvec_acc_ntt(vpolyvec out, vpoly A[VIPER_K][VIPER_K], const vpolyvec s, int transpose)
+{
+  uint32_t s_ntt[VIPER_K][VIPER_N];
+  uint16_t s_max[VIPER_K];
+
+  prepare_vector_ntt(s_ntt, s_max, s);
+
+  for (size_t i = 0; i < VIPER_K; i++) {
+    uint32_t acc_ntt[VIPER_N];
+    uint64_t bound = 0;
+
+    for (size_t j = 0; j < VIPER_K; j++) {
+      int16_t a_center[VIPER_N];
+      uint32_t a_ntt[VIPER_N];
+
+      center_poly(a_center, transpose ? A[j][i] : A[i][j]);
+      if (!ntt_bound_add_ok(&bound, max_abs_poly(a_center), s_max[j])) {
+        matvec_fallback(out, A, s, transpose);
+        return;
+      }
+      NTT_forward_32(a_ntt, (uint16_t *)a_center);
+      add_product_ntt(acc_ntt, a_ntt, s_ntt[j], j == 0);
+    }
+
+    finish_acc_ntt(out[i], acc_ntt);
+  }
+}
+
+void matvec_m4ntt(vpolyvec out, vpoly A[VIPER_K][VIPER_K], const vpolyvec s)
+{
+  matvec_acc_ntt(out, A, s, 0);
 }
 
 void matTvec_m4ntt(vpolyvec out, vpoly A[VIPER_K][VIPER_K], const vpolyvec s)
 {
-  vpoly t;
-  for (size_t i = 0; i < VIPER_K; i++) {
-    memset(out[i], 0, sizeof(vpoly));
-    for (size_t j = 0; j < VIPER_K; j++) {
-      poly_mul_m4ntt(t, A[j][i], s[j]);
-      for (size_t k = 0; k < VIPER_N; k++) {
-        out[i][k] = (uint16_t)((out[i][k] + t[k]) & VIPER_Q_MASK);
-      }
-    }
-  }
+  matvec_acc_ntt(out, A, s, 1);
 }
 
-void dot_m4ntt(vpoly out, const vpolyvec a, const vpolyvec b)
+static void dot_fallback(vpoly out, const vpolyvec a, const vpolyvec b)
 {
   vpoly t;
+
   memset(out, 0, sizeof(vpoly));
   for (size_t i = 0; i < VIPER_K; i++) {
     poly_mul_m4ntt(t, a[i], b[i]);
@@ -120,4 +187,29 @@ void dot_m4ntt(vpoly out, const vpolyvec a, const vpolyvec b)
       out[k] = (uint16_t)((out[k] + t[k]) & VIPER_Q_MASK);
     }
   }
+}
+
+void dot_m4ntt(vpoly out, const vpolyvec a, const vpolyvec b)
+{
+  uint32_t acc_ntt[VIPER_N];
+  uint64_t bound = 0;
+
+  for (size_t i = 0; i < VIPER_K; i++) {
+    int16_t a_center[VIPER_N];
+    int16_t b_center[VIPER_N];
+    uint32_t a_ntt[VIPER_N];
+    uint32_t b_ntt[VIPER_N];
+
+    center_poly(a_center, a[i]);
+    center_poly(b_center, b[i]);
+    if (!ntt_bound_add_ok(&bound, max_abs_poly(a_center), max_abs_poly(b_center))) {
+      dot_fallback(out, a, b);
+      return;
+    }
+    NTT_forward_32(a_ntt, (uint16_t *)a_center);
+    NTT_forward_32(b_ntt, (uint16_t *)b_center);
+    add_product_ntt(acc_ntt, a_ntt, b_ntt, i == 0);
+  }
+
+  finish_acc_ntt(out, acc_ntt);
 }

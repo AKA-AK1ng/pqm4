@@ -189,6 +189,137 @@ static void dot_fallback(vpoly out, const vpolyvec a, const vpolyvec b)
   }
 }
 
+void matTvec_dot_m4ntt(vpolyvec out, vpoly dot, vpoly A[VIPER_K][VIPER_K], const vpolyvec a, const vpolyvec s)
+{
+  uint32_t s_ntt[VIPER_K][VIPER_N];
+  uint16_t s_max[VIPER_K];
+
+  prepare_vector_ntt(s_ntt, s_max, s);
+
+  for (size_t i = 0; i < VIPER_K; i++) {
+    uint32_t acc_ntt[VIPER_N];
+    uint64_t bound = 0;
+
+    for (size_t j = 0; j < VIPER_K; j++) {
+      int16_t a_center[VIPER_N];
+      uint32_t a_ntt[VIPER_N];
+
+      center_poly(a_center, A[j][i]);
+      if (!ntt_bound_add_ok(&bound, max_abs_poly(a_center), s_max[j])) {
+        matvec_fallback(out, A, s, 1);
+        dot_fallback(dot, a, s);
+        return;
+      }
+      NTT_forward_32(a_ntt, (uint16_t *)a_center);
+      add_product_ntt(acc_ntt, a_ntt, s_ntt[j], j == 0);
+    }
+
+    finish_acc_ntt(out[i], acc_ntt);
+  }
+
+  {
+    uint32_t acc_ntt[VIPER_N];
+    uint64_t bound = 0;
+
+    for (size_t i = 0; i < VIPER_K; i++) {
+      int16_t a_center[VIPER_N];
+      uint32_t a_ntt[VIPER_N];
+
+      center_poly(a_center, a[i]);
+      if (!ntt_bound_add_ok(&bound, max_abs_poly(a_center), s_max[i])) {
+        matvec_fallback(out, A, s, 1);
+        dot_fallback(dot, a, s);
+        return;
+      }
+      NTT_forward_32(a_ntt, (uint16_t *)a_center);
+      add_product_ntt(acc_ntt, a_ntt, s_ntt[i], i == 0);
+    }
+
+    finish_acc_ntt(dot, acc_ntt);
+  }
+}
+
+int matvec_stream_m4ntt(vpolyvec out, const vpolyvec s, viper_expand_A_poly_fn expand_A, const void *ctx, int transpose)
+{
+  uint32_t s_ntt[VIPER_K][VIPER_N];
+  uint16_t s_max[VIPER_K];
+
+  prepare_vector_ntt(s_ntt, s_max, s);
+
+  for (size_t i = 0; i < VIPER_K; i++) {
+    uint32_t acc_ntt[VIPER_N];
+    uint64_t bound = 0;
+
+    for (size_t j = 0; j < VIPER_K; j++) {
+      vpoly a_poly;
+      int16_t a_center[VIPER_N];
+      uint32_t a_ntt[VIPER_N];
+
+      expand_A(a_poly, ctx, transpose ? j : i, transpose ? i : j);
+      center_poly(a_center, a_poly);
+      if (!ntt_bound_add_ok(&bound, max_abs_poly(a_center), s_max[j])) {
+        return 0;
+      }
+      NTT_forward_32(a_ntt, (uint16_t *)a_center);
+      add_product_ntt(acc_ntt, a_ntt, s_ntt[j], j == 0);
+    }
+
+    finish_acc_ntt(out[i], acc_ntt);
+  }
+
+  return 1;
+}
+
+int matTvec_dot_stream_m4ntt(vpolyvec out, vpoly dot, const vpolyvec a, const vpolyvec s, viper_expand_A_poly_fn expand_A, const void *ctx)
+{
+  uint32_t s_ntt[VIPER_K][VIPER_N];
+  uint16_t s_max[VIPER_K];
+
+  prepare_vector_ntt(s_ntt, s_max, s);
+
+  for (size_t i = 0; i < VIPER_K; i++) {
+    uint32_t acc_ntt[VIPER_N];
+    uint64_t bound = 0;
+
+    for (size_t j = 0; j < VIPER_K; j++) {
+      vpoly a_poly;
+      int16_t a_center[VIPER_N];
+      uint32_t a_ntt[VIPER_N];
+
+      expand_A(a_poly, ctx, j, i);
+      center_poly(a_center, a_poly);
+      if (!ntt_bound_add_ok(&bound, max_abs_poly(a_center), s_max[j])) {
+        return 0;
+      }
+      NTT_forward_32(a_ntt, (uint16_t *)a_center);
+      add_product_ntt(acc_ntt, a_ntt, s_ntt[j], j == 0);
+    }
+
+    finish_acc_ntt(out[i], acc_ntt);
+  }
+
+  {
+    uint32_t acc_ntt[VIPER_N];
+    uint64_t bound = 0;
+
+    for (size_t i = 0; i < VIPER_K; i++) {
+      int16_t a_center[VIPER_N];
+      uint32_t a_ntt[VIPER_N];
+
+      center_poly(a_center, a[i]);
+      if (!ntt_bound_add_ok(&bound, max_abs_poly(a_center), s_max[i])) {
+        return 0;
+      }
+      NTT_forward_32(a_ntt, (uint16_t *)a_center);
+      add_product_ntt(acc_ntt, a_ntt, s_ntt[i], i == 0);
+    }
+
+    finish_acc_ntt(dot, acc_ntt);
+  }
+
+  return 1;
+}
+
 void dot_m4ntt(vpoly out, const vpolyvec a, const vpolyvec b)
 {
   uint32_t acc_ntt[VIPER_N];

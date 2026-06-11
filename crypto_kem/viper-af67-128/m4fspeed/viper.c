@@ -137,6 +137,114 @@ void viper_quantize_pack_t3_array(unsigned char *out, const uint16_t *poly, cons
   }
 }
 
+static unsigned viper_quantize_pack_cmp_t10_array(const unsigned char *bytes, const uint16_t *poly, const uint16_t *dither) {
+  unsigned diff = 0;
+  for (size_t i = 0, j = 0; i < VIPER_N; i += 4, j += 5) {
+    uint16_t q0 = quantize_shift(poly[i + 0], dither[i + 0], 2u, 0x03ffu);
+    uint16_t q1 = quantize_shift(poly[i + 1], dither[i + 1], 2u, 0x03ffu);
+    uint16_t q2 = quantize_shift(poly[i + 2], dither[i + 2], 2u, 0x03ffu);
+    uint16_t q3 = quantize_shift(poly[i + 3], dither[i + 3], 2u, 0x03ffu);
+    diff |= (unsigned)(bytes[j + 0] ^ (unsigned char)q0);
+    diff |= (unsigned)(bytes[j + 1] ^ (unsigned char)((q0 >> 8) | (q1 << 2)));
+    diff |= (unsigned)(bytes[j + 2] ^ (unsigned char)((q1 >> 6) | (q2 << 4)));
+    diff |= (unsigned)(bytes[j + 3] ^ (unsigned char)((q2 >> 4) | (q3 << 6)));
+    diff |= (unsigned)(bytes[j + 4] ^ (unsigned char)(q3 >> 2));
+  }
+  return diff;
+}
+
+static unsigned viper_quantize_pack_cmp_t9_array(const unsigned char *bytes, const uint16_t *poly, const uint16_t *dither) {
+  unsigned diff = 0;
+  for (size_t i = 0, j = 0; i < VIPER_N; i += 8, j += 9) {
+    uint16_t q0 = quantize_shift(poly[i + 0], dither[i + 0], 3u, 0x01ffu);
+    uint16_t q1 = quantize_shift(poly[i + 1], dither[i + 1], 3u, 0x01ffu);
+    uint16_t q2 = quantize_shift(poly[i + 2], dither[i + 2], 3u, 0x01ffu);
+    uint16_t q3 = quantize_shift(poly[i + 3], dither[i + 3], 3u, 0x01ffu);
+    uint16_t q4 = quantize_shift(poly[i + 4], dither[i + 4], 3u, 0x01ffu);
+    uint16_t q5 = quantize_shift(poly[i + 5], dither[i + 5], 3u, 0x01ffu);
+    uint16_t q6 = quantize_shift(poly[i + 6], dither[i + 6], 3u, 0x01ffu);
+    uint16_t q7 = quantize_shift(poly[i + 7], dither[i + 7], 3u, 0x01ffu);
+    diff |= (unsigned)(bytes[j + 0] ^ (unsigned char)q0);
+    diff |= (unsigned)(bytes[j + 1] ^ (unsigned char)((q0 >> 8) | (q1 << 1)));
+    diff |= (unsigned)(bytes[j + 2] ^ (unsigned char)((q1 >> 7) | (q2 << 2)));
+    diff |= (unsigned)(bytes[j + 3] ^ (unsigned char)((q2 >> 6) | (q3 << 3)));
+    diff |= (unsigned)(bytes[j + 4] ^ (unsigned char)((q3 >> 5) | (q4 << 4)));
+    diff |= (unsigned)(bytes[j + 5] ^ (unsigned char)((q4 >> 4) | (q5 << 5)));
+    diff |= (unsigned)(bytes[j + 6] ^ (unsigned char)((q5 >> 3) | (q6 << 6)));
+    diff |= (unsigned)(bytes[j + 7] ^ (unsigned char)((q6 >> 2) | (q7 << 7)));
+    diff |= (unsigned)(bytes[j + 8] ^ (unsigned char)(q7 >> 1));
+  }
+  return diff;
+}
+
+static unsigned viper_quantize_pack_cmp_t4_array(const unsigned char *bytes, const uint16_t *poly, const uint16_t *dither) {
+  unsigned diff = 0;
+  for (size_t i = 0, j = 0; i < VIPER_N; i += 8, j += 4) {
+    uint16_t q0 = quantize_shift(poly[i + 0], dither[i + 0], 8u, 0x000fu);
+    uint16_t q1 = quantize_shift(poly[i + 1], dither[i + 1], 8u, 0x000fu);
+    uint16_t q2 = quantize_shift(poly[i + 2], dither[i + 2], 8u, 0x000fu);
+    uint16_t q3 = quantize_shift(poly[i + 3], dither[i + 3], 8u, 0x000fu);
+    uint16_t q4 = quantize_shift(poly[i + 4], dither[i + 4], 8u, 0x000fu);
+    uint16_t q5 = quantize_shift(poly[i + 5], dither[i + 5], 8u, 0x000fu);
+    uint16_t q6 = quantize_shift(poly[i + 6], dither[i + 6], 8u, 0x000fu);
+    uint16_t q7 = quantize_shift(poly[i + 7], dither[i + 7], 8u, 0x000fu);
+    diff |= (unsigned)(bytes[j + 0] ^ (unsigned char)(q0 | (q1 << 4)));
+    diff |= (unsigned)(bytes[j + 1] ^ (unsigned char)(q2 | (q3 << 4)));
+    diff |= (unsigned)(bytes[j + 2] ^ (unsigned char)(q4 | (q5 << 4)));
+    diff |= (unsigned)(bytes[j + 3] ^ (unsigned char)(q6 | (q7 << 4)));
+  }
+  return diff;
+}
+
+static unsigned viper_quantize_pack_cmp_t3_array(const unsigned char *bytes, const uint16_t *poly, const uint16_t *dither) {
+  unsigned diff = 0;
+  for (size_t i = 0, j = 0; i < VIPER_N; i += 8, j += 3) {
+    uint16_t q0 = quantize_shift(poly[i + 0], dither[i + 0], 9u, 0x0007u);
+    uint16_t q1 = quantize_shift(poly[i + 1], dither[i + 1], 9u, 0x0007u);
+    uint16_t q2 = quantize_shift(poly[i + 2], dither[i + 2], 9u, 0x0007u);
+    uint16_t q3 = quantize_shift(poly[i + 3], dither[i + 3], 9u, 0x0007u);
+    uint16_t q4 = quantize_shift(poly[i + 4], dither[i + 4], 9u, 0x0007u);
+    uint16_t q5 = quantize_shift(poly[i + 5], dither[i + 5], 9u, 0x0007u);
+    uint16_t q6 = quantize_shift(poly[i + 6], dither[i + 6], 9u, 0x0007u);
+    uint16_t q7 = quantize_shift(poly[i + 7], dither[i + 7], 9u, 0x0007u);
+    diff |= (unsigned)(bytes[j + 0] ^ (unsigned char)(q0 | (q1 << 3) | (q2 << 6)));
+    diff |= (unsigned)(bytes[j + 1] ^ (unsigned char)((q2 >> 2) | (q3 << 1) | (q4 << 4) | (q5 << 7)));
+    diff |= (unsigned)(bytes[j + 2] ^ (unsigned char)((q5 >> 1) | (q6 << 2) | (q7 << 5)));
+  }
+  return diff;
+}
+
+static unsigned viper_quantize_pack_cmp_bits(const unsigned char *bytes, const uint16_t *poly, const uint16_t *dither, unsigned bits) {
+  uint32_t acc = 0;
+  unsigned accbits = 0;
+  unsigned diff = 0;
+  size_t j = 0;
+  uint16_t mask = (uint16_t)((1u << bits) - 1u);
+  for (size_t i = 0; i < VIPER_N; i++) {
+    acc |= ((uint32_t)quantize_shift(poly[i], dither[i], 12u - bits, mask)) << accbits;
+    accbits += bits;
+    while (accbits >= 8) {
+      diff |= (unsigned)(bytes[j++] ^ (unsigned char)(acc & 0xffu));
+      acc >>= 8;
+      accbits -= 8;
+    }
+  }
+  if (accbits) {
+    diff |= (unsigned)(bytes[j] ^ (unsigned char)(acc & 0xffu));
+  }
+  return diff;
+}
+
+static unsigned viper_quantize_pack_cmp_array(const unsigned char *bytes, const uint16_t *poly, const uint16_t *dither, unsigned bits) {
+  switch (bits) {
+    case 10: return viper_quantize_pack_cmp_t10_array(bytes, poly, dither);
+    case 9: return viper_quantize_pack_cmp_t9_array(bytes, poly, dither);
+    case 4: return viper_quantize_pack_cmp_t4_array(bytes, poly, dither);
+    case 3: return viper_quantize_pack_cmp_t3_array(bytes, poly, dither);
+    default: return viper_quantize_pack_cmp_bits(bytes, poly, dither, bits);
+  }
+}
+
 void viper_unpack_reconstruct_t10_array(uint16_t *out, const unsigned char *in, const uint16_t *dither) {
   for (size_t i = 0, j = 0; i < VIPER_N; i += 4, j += 5) {
     uint16_t q0 = (uint16_t)(in[j + 0] | ((uint16_t)(in[j + 1] & 0x03u) << 8));
@@ -367,16 +475,19 @@ void viper_gen_public_parse_A(vpoly A[VIPER_K][VIPER_K], const unsigned char *bu
   }
 }
 
+static void parse_dpk_poly(uint16_t out[VIPER_N], const unsigned char *buf) {
+  for (size_t l = 0; l < VIPER_N; l += 4, buf++) {
+    unsigned b = *buf;
+    out[l + 0] = (uint16_t)(b & 3u);
+    out[l + 1] = (uint16_t)((b >> 2) & 3u);
+    out[l + 2] = (uint16_t)((b >> 4) & 3u);
+    out[l + 3] = (uint16_t)((b >> 6) & 3u);
+  }
+}
+
 void viper_gen_public_parse_dpk(uint16_t dpk[VIPER_K][VIPER_N], const unsigned char *buf) {
   for (size_t i = 0; i < VIPER_K; i++) {
-    const unsigned char *p = buf + genpublic_dpk_offset(i);
-    for (size_t l = 0; l < VIPER_N; l += 4, p++) {
-      unsigned b = *p;
-      dpk[i][l + 0] = (uint16_t)(b & 3u);
-      dpk[i][l + 1] = (uint16_t)((b >> 2) & 3u);
-      dpk[i][l + 2] = (uint16_t)((b >> 4) & 3u);
-      dpk[i][l + 3] = (uint16_t)((b >> 6) & 3u);
-    }
+    parse_dpk_poly(dpk[i], buf + genpublic_dpk_offset(i));
   }
 }
 
@@ -395,10 +506,26 @@ static void genpublic_expand_A_poly(vpoly out, const unsigned char rho[32], size
   parse_A_poly(out, buf);
 }
 
+static void genpublic_expand_A_poly_cb(vpoly out, const void *ctx, size_t i, size_t j) {
+  genpublic_expand_A_poly(out, (const unsigned char *)ctx, i, j);
+}
+
+static void genpublic_expand_dpk_poly(uint16_t out[VIPER_N], const unsigned char rho[32], size_t i) {
+  unsigned char in[VIPER_GENPUBLIC_INPUT_BYTES];
+  unsigned char buf[VIPER_PUBLIC_DPK_POLYBYTES];
+  genpublic_input(in, rho, VIPER_DOMAIN_DPK, i, 0);
+  shake128(buf, sizeof(buf), in, sizeof(in));
+  parse_dpk_poly(out, buf);
+}
+
+static void viper_gen_public_dpk(uint16_t dpk[VIPER_K][VIPER_N], const unsigned char rho[32]) {
+  for (size_t i = 0; i < VIPER_K; i++) {
+    genpublic_expand_dpk_poly(dpk[i], rho, i);
+  }
+}
+
 void viper_genpublic_matvec_fused_experiment(vpolyvec out, uint16_t dpk[VIPER_K][VIPER_N], const unsigned char rho[32], const vpolyvec s, int transpose) {
   vpoly a, t;
-  unsigned char in[VIPER_GENPUBLIC_INPUT_BYTES];
-  unsigned char dbuf[VIPER_PUBLIC_DPK_POLYBYTES];
   memset(out, 0, sizeof(vpolyvec));
   for (size_t i = 0; i < VIPER_K; i++) {
     for (size_t j = 0; j < VIPER_K; j++) {
@@ -407,17 +534,7 @@ void viper_genpublic_matvec_fused_experiment(vpolyvec out, uint16_t dpk[VIPER_K]
       for (size_t l = 0; l < VIPER_N; l++) out[i][l] = (uint16_t)((out[i][l] + t[l]) & VIPER_Q_MASK);
     }
   }
-  for (size_t i = 0; i < VIPER_K; i++) {
-    genpublic_input(in, rho, VIPER_DOMAIN_DPK, i, 0);
-    shake128(dbuf, sizeof(dbuf), in, sizeof(in));
-    for (size_t l = 0, off = 0; l < VIPER_N; l += 4, off++) {
-      unsigned b = dbuf[off];
-      dpk[i][l + 0] = (uint16_t)(b & 3u);
-      dpk[i][l + 1] = (uint16_t)((b >> 2) & 3u);
-      dpk[i][l + 2] = (uint16_t)((b >> 4) & 3u);
-      dpk[i][l + 3] = (uint16_t)((b >> 6) & 3u);
-    }
-  }
+  viper_gen_public_dpk(dpk, rho);
 }
 
 void viper_sample_secret(vpolyvec s, const unsigned char seed[32], unsigned eta) {
@@ -480,13 +597,16 @@ void viper_decode(unsigned char m[32], const vpoly in) {
 }
 
 void viper_pke_keypair(unsigned char *pk, unsigned char *skpke, const unsigned char rho[32], const unsigned char sseed[32]) {
-  vpoly A[VIPER_K][VIPER_K];
   uint16_t dpk[VIPER_K][VIPER_N];
   vpolyvec s, b;
   memcpy(pk, rho, 32);
-  viper_gen_public(A, dpk, rho);
+  viper_gen_public_dpk(dpk, rho);
   viper_sample_secret(s, sseed, VIPER_ETA_S);
-  viper_matvec(b, A, s);
+  if (!matvec_stream_m4ntt(b, s, genpublic_expand_A_poly_cb, rho, 0)) {
+    vpoly A[VIPER_K][VIPER_K];
+    viper_gen_public(A, dpk, rho);
+    viper_matvec(b, A, s);
+  }
   for (size_t i = 0; i < VIPER_K; i++) {
     viper_quantize_pack_array(pk + 32 + i * VIPER_PACKED_PK_POLYBYTES, b[i], dpk[i], VIPER_T_PK);
     viper_pack_bits(skpke + i * VIPER_POLYBYTES_12, s[i], VIPER_N, 12);
@@ -494,23 +614,26 @@ void viper_pke_keypair(unsigned char *pk, unsigned char *skpke, const unsigned c
 }
 
 void viper_pke_enc(unsigned char *ct, const unsigned char *pk, const unsigned char m[32], const unsigned char omega[64]) {
-  vpoly A[VIPER_K][VIPER_K], acc, t;
+  vpoly acc, t;
   uint16_t dpk[VIPER_K][VIPER_N], du[VIPER_K][VIPER_N], dv[VIPER_N];
   vpolyvec r, u, bhat;
   const unsigned char *rho = pk;
   const unsigned char *mu = omega + 32;
-  viper_gen_public(A, dpk, rho);
+  viper_gen_public_dpk(dpk, rho);
   viper_gen_dither(du, dv, mu);
   viper_sample_secret(r, omega, VIPER_ETA_R);
   for (size_t i = 0; i < VIPER_K; i++) {
     viper_unpack_reconstruct_array(bhat[i], pk + 32 + i * VIPER_PACKED_PK_POLYBYTES, dpk[i], VIPER_T_PK);
   }
-  viper_matTvec(u, A, r);
+  if (!matTvec_dot_stream_m4ntt(u, t, bhat, r, genpublic_expand_A_poly_cb, rho)) {
+    vpoly A[VIPER_K][VIPER_K];
+    viper_gen_public(A, dpk, rho);
+    matTvec_dot_m4ntt(u, t, A, bhat, r);
+  }
   for (size_t i = 0; i < VIPER_K; i++) {
     viper_quantize_pack_array(ct + i * VIPER_PACKED_U_POLYBYTES, u[i], du[i], VIPER_T_U);
   }
   viper_encode(acc, m);
-  viper_dot(t, bhat, r);
   poly_add(acc, t);
   viper_quantize_pack_array(ct + VIPER_PACKED_U_BYTES, acc, dv, VIPER_T_V);
   memcpy(ct + VIPER_PACKED_U_BYTES + VIPER_PACKED_V_BYTES, mu, 32);
@@ -532,41 +655,33 @@ void viper_pke_dec(unsigned char m[32], const unsigned char *skpke, const unsign
   viper_decode(m, w);
 }
 
-static unsigned diff_bytes(const unsigned char *a, const unsigned char *b, size_t n) {
-  unsigned diff = 0;
-  for (size_t i = 0; i < n; i++) diff |= (unsigned)(a[i] ^ b[i]);
-  return diff;
-}
-
 int viper_reencrypt_check(const unsigned char *ct, const unsigned char *pk, const unsigned char m[32], const unsigned char sigma[32]) {
-  vpoly A[VIPER_K][VIPER_K], acc, t;
+  vpoly acc, t;
   uint16_t dpk[VIPER_K][VIPER_N], du[VIPER_K][VIPER_N], dv[VIPER_N];
   vpolyvec r, u, bhat;
   unsigned char omega[64];
-  unsigned char packed_u[VIPER_PACKED_U_POLYBYTES];
-  unsigned char packed_v[VIPER_PACKED_V_BYTES];
   const unsigned char *rho = pk;
   const unsigned char *mu = ct + VIPER_PACKED_U_BYTES + VIPER_PACKED_V_BYTES;
   unsigned diff = 0;
 
   memcpy(omega, sigma, 32);
   memcpy(omega + 32, mu, 32);
-  viper_gen_public(A, dpk, rho);
+  viper_gen_public_dpk(dpk, rho);
   viper_gen_dither(du, dv, mu);
   viper_sample_secret(r, omega, VIPER_ETA_R);
   for (size_t i = 0; i < VIPER_K; i++) {
     viper_unpack_reconstruct_array(bhat[i], pk + 32 + i * VIPER_PACKED_PK_POLYBYTES, dpk[i], VIPER_T_PK);
   }
-  viper_matTvec(u, A, r);
+  if (!matTvec_dot_stream_m4ntt(u, t, bhat, r, genpublic_expand_A_poly_cb, rho)) {
+    vpoly A[VIPER_K][VIPER_K];
+    viper_gen_public(A, dpk, rho);
+    matTvec_dot_m4ntt(u, t, A, bhat, r);
+  }
   for (size_t i = 0; i < VIPER_K; i++) {
-    viper_quantize_pack_array(packed_u, u[i], du[i], VIPER_T_U);
-    diff |= diff_bytes(packed_u, ct + i * VIPER_PACKED_U_POLYBYTES, VIPER_PACKED_U_POLYBYTES);
+    diff |= viper_quantize_pack_cmp_array(ct + i * VIPER_PACKED_U_POLYBYTES, u[i], du[i], VIPER_T_U);
   }
   viper_encode(acc, m);
-  viper_dot(t, bhat, r);
   poly_add(acc, t);
-  viper_quantize_pack_array(packed_v, acc, dv, VIPER_T_V);
-  diff |= diff_bytes(packed_v, ct + VIPER_PACKED_U_BYTES, VIPER_PACKED_V_BYTES);
-  diff |= diff_bytes(mu, ct + VIPER_PACKED_U_BYTES + VIPER_PACKED_V_BYTES, 32);
+  diff |= viper_quantize_pack_cmp_array(ct + VIPER_PACKED_U_BYTES, acc, dv, VIPER_T_V);
   return diff == 0;
 }

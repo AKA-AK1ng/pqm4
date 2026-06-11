@@ -9,6 +9,10 @@
 void poly_mul_m4ntt(vpoly c, const vpoly a, const vpoly b);
 void matvec_m4ntt(vpolyvec out, vpoly A[VIPER_K][VIPER_K], const vpolyvec s);
 void matTvec_m4ntt(vpolyvec out, vpoly A[VIPER_K][VIPER_K], const vpolyvec s);
+void matTvec_dot_m4ntt(vpolyvec out, vpoly dot, vpoly A[VIPER_K][VIPER_K], const vpolyvec a, const vpolyvec s);
+typedef void (*viper_expand_A_poly_fn)(vpoly out, const void *ctx, size_t i, size_t j);
+int matvec_stream_m4ntt(vpolyvec out, const vpolyvec s, viper_expand_A_poly_fn expand_A, const void *ctx, int transpose);
+int matTvec_dot_stream_m4ntt(vpolyvec out, vpoly dot, const vpolyvec a, const vpolyvec s, viper_expand_A_poly_fn expand_A, const void *ctx);
 void dot_m4ntt(vpoly out, const vpolyvec a, const vpolyvec b);
 
 #define viper_poly_mul poly_mul_m4ntt

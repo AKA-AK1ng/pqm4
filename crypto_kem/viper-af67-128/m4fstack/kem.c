@@ -43,15 +43,17 @@ int crypto_kem_enc(unsigned char *ct, unsigned char *ss, const unsigned char *pk
 }
 
 int crypto_kem_dec(unsigned char *ss, const unsigned char *ct, const unsigned char *sk) {
-  unsigned char m[32], buf[64], kr[64], hct[32], kdfin[64];
+  unsigned char m[32], buf[64], kr[64], hct[32], kdfin[64], dither[VIPER_DITHER_BYTES];
   const unsigned char *pk = sk + VIPER_SECRETKEY_PKE_BYTES;
   const unsigned char *hpk = sk + VIPER_SECRETKEY_PKE_BYTES + VIPER_PUBLICKEYBYTES;
   const unsigned char *z = hpk + 32;
-  viper_pke_dec(m, sk, ct);
+  const unsigned char *mu = ct + VIPER_PACKED_U_BYTES + VIPER_PACKED_V_BYTES;
+  viper_gen_dither_bytes(dither, mu);
+  viper_pke_dec(m, sk, ct, dither);
   memcpy(buf, m, 32);
   memcpy(buf + 32, hpk, 32);
   shake128(kr, 64, buf, 64);
-  int ok = viper_reencrypt_check(ct, pk, m, kr + 32);
+  int ok = viper_reencrypt_check(ct, pk, m, kr + 32, dither);
   h32(hct, ct, VIPER_CIPHERTEXTBYTES);
   memcpy(kdfin, ok ? kr : z, 32);
   memcpy(kdfin + 32, hct, 32);

@@ -26,6 +26,7 @@ void viper_unpack_reconstruct_t4_array(uint16_t *out, const unsigned char *in, c
 void viper_unpack_reconstruct_t3_array(uint16_t *out, const unsigned char *in, const uint16_t *dither);
 void viper_unpack_reconstruct_array(uint16_t *out, const unsigned char *in, const uint16_t *dither, unsigned bits);
 void viper_gen_dither(uint16_t du[VIPER_K][VIPER_N], uint16_t dv[VIPER_N], const unsigned char mu[32]);
+void viper_gen_dither_bytes(unsigned char dither[VIPER_DITHER_BYTES], const unsigned char mu[32]);
 void viper_gen_public_shake(unsigned char *buf, const unsigned char rho[32]);
 void viper_gen_public_parse_A(vpoly A[VIPER_K][VIPER_K], const unsigned char *buf);
 void viper_gen_public_parse_dpk(uint16_t dpk[VIPER_K][VIPER_N], const unsigned char *buf);
@@ -37,7 +38,7 @@ void viper_encode(vpoly out, const unsigned char m[32]);
 void viper_decode(unsigned char m[32], const vpoly in);
 void viper_pke_keypair(unsigned char *pk, unsigned char *skpke, const unsigned char rho[32], const unsigned char sseed[32]);
 void viper_pke_enc(unsigned char *ct, const unsigned char *pk, const unsigned char m[32], const unsigned char omega[64]);
-void viper_pke_dec(unsigned char m[32], const unsigned char *skpke, const unsigned char *ct);
-int viper_reencrypt_check(const unsigned char *ct, const unsigned char *pk, const unsigned char m[32], const unsigned char sigma[32]);
+void viper_pke_dec(unsigned char m[32], const unsigned char *skpke, const unsigned char *ct, const unsigned char dither[VIPER_DITHER_BYTES]);
+int viper_reencrypt_check(const unsigned char *ct, const unsigned char *pk, const unsigned char m[32], const unsigned char sigma[32], const unsigned char dither[VIPER_DITHER_BYTES]);
 
 #endif

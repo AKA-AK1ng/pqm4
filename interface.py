@@ -38,8 +38,10 @@ def get_platform(args):
     if args.platform in ['stm32f4discovery', 'nucleo-l476rg']:
         platform = platforms.StLink(args.uart)
     elif args.platform == "nucleo-l4r5zi":
-        bin_type = 'hex'
-        platform = platforms.OpenOCD("st_nucleo_l4r5.cfg", args.uart)
+        # bin_type = 'hex'
+        # platform = platforms.OpenOCD("st_nucleo_l4r5.cfg", args.uart)
+        bin_type = 'bin'
+        platform = platforms.StLink(args.uart)
     elif args.platform in ["cw308t-stm32f3", "cw308t-stm32f415"]:
         bin_type = 'hex'
         platform = platforms.ChipWhisperer()

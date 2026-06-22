@@ -14,16 +14,17 @@ typedef void (*viper_expand_A_poly_fn)(vpoly out, const void *ctx, size_t i, siz
 int matvec_stream_m4ntt(vpolyvec out, const vpolyvec s, viper_expand_A_poly_fn expand_A, const void *ctx, int transpose);
 int matTvec_dot_stream_m4ntt(vpolyvec out, vpoly dot, const vpolyvec a, const vpolyvec s, viper_expand_A_poly_fn expand_A, const void *ctx);
 void dot_m4ntt(vpoly out, const vpolyvec a, const vpolyvec b);
+void dot_m4shortdense(vpoly out, const vpolyvec s, const vpolyvec a);
 
 #define viper_poly_mul poly_mul_m4ntt
 #define viper_matvec matvec_m4ntt
 #define viper_matTvec matTvec_m4ntt
-#define viper_dot dot_m4ntt
+#define viper_dot dot_m4shortdense
 
 #define VIPER_POLY_MUL_ROUTE "poly_mul_m4ntt"
 #define VIPER_MATVEC_ROUTE "matvec_m4ntt"
 #define VIPER_MATTVEC_ROUTE "matTvec_m4ntt"
-#define VIPER_DOT_ROUTE "dot_m4ntt"
+#define VIPER_DOT_ROUTE "dot_m4shortdense"
 
 static inline void viper_backend_report(FILE *out)
 {

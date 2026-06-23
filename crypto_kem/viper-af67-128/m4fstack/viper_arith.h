@@ -15,6 +15,7 @@ typedef void (*viper_expand_vector_centered_fn)(int16_t out[VIPER_N], const void
 typedef void (*viper_emit_poly_fn)(const uint16_t poly[VIPER_N], void *ctx, size_t i);
 void matvec_stream_m4ntt(const vpolyvec s, viper_expand_matrix_centered_fn expand_A, const void *expand_ctx, viper_emit_poly_fn emit, void *emit_ctx, int transpose);
 void matTvec_dot_stream_m4ntt(vpoly dot, const vpolyvec s, viper_expand_matrix_centered_fn expand_A, const void *expand_ctx, viper_expand_vector_centered_fn expand_dot, const void *dot_ctx, viper_emit_poly_fn emit, void *emit_ctx);
+void dot_dec_stream_m4ntt(vpoly out, viper_expand_vector_centered_fn expand_a, const void *a_ctx, viper_expand_vector_centered_fn expand_b, const void *b_ctx);
 void dot_m4ntt(vpoly out, const vpolyvec a, const vpolyvec b);
 void dot_m4shortdense(vpoly out, const vpolyvec s, const vpolyvec a);
 
@@ -26,7 +27,7 @@ void dot_m4shortdense(vpoly out, const vpolyvec s, const vpolyvec a);
 #define VIPER_POLY_MUL_ROUTE "poly_mul_m4ntt_stack"
 #define VIPER_MATVEC_ROUTE "matvec_m4ntt_stack"
 #define VIPER_MATTVEC_ROUTE "matTvec_m4ntt_stack"
-#define VIPER_DOT_ROUTE "dot_m4ntt_stack"
+#define VIPER_DOT_ROUTE "dot_dec_stream_m4ntt_stack"
 
 static inline void viper_backend_report(FILE *out)
 {

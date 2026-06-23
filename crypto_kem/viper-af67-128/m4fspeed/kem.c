@@ -55,7 +55,8 @@ int crypto_kem_dec(unsigned char *ss, const unsigned char *ct, const unsigned ch
   shake128(kr, 64, buf, 64);
   int ok = viper_reencrypt_check(ct, pk, m, kr + 32, dither);
   h32(hct, ct, VIPER_CIPHERTEXTBYTES);
-  memcpy(kdfin, ok ? kr : z, 32);
+  memcpy(kdfin, kr, 32);
+  cmov(kdfin, z, 32, (unsigned char)(1u ^ (unsigned)ok));
   memcpy(kdfin + 32, hct, 32);
   h32(ss, kdfin, 64);
   return 0;

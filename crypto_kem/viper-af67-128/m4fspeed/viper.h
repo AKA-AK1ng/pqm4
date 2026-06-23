@@ -32,10 +32,7 @@ void viper_gen_public_parse_A(vpoly A[VIPER_K][VIPER_K], const unsigned char *bu
 void viper_gen_public_parse_dpk(uint16_t dpk[VIPER_K][VIPER_N], const unsigned char *buf);
 void viper_gen_public(vpoly A[VIPER_K][VIPER_K], uint16_t dpk[VIPER_K][VIPER_N], const unsigned char rho[32]);
 void viper_genpublic_matvec_fused_experiment(vpolyvec out, uint16_t dpk[VIPER_K][VIPER_N], const unsigned char rho[32], const vpolyvec s, int transpose);
-void viper_sample_secret(vpolyvec s, const unsigned char seed[32], unsigned eta);
 void viper_poly_mul_schoolbook_oracle(vpoly c, const vpoly a, const vpoly b);
-void viper_encode(vpoly out, const unsigned char m[32]);
-void viper_decode(unsigned char m[32], const vpoly in);
 void viper_pke_keypair(unsigned char *pk, unsigned char *skpke, const unsigned char rho[32], const unsigned char sseed[32]);
 void viper_pke_enc(unsigned char *ct, const unsigned char *pk, const unsigned char m[32], const unsigned char omega[64]);
 void viper_pke_dec(unsigned char m[32], const unsigned char *skpke, const unsigned char *ct, const unsigned char dither[VIPER_DITHER_BYTES]);

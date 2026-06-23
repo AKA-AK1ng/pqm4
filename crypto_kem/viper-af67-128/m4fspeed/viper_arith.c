@@ -107,11 +107,9 @@ static void add_product_ntt(uint32_t acc[VIPER_N], uint32_t a_ntt[VIPER_N], cons
 
 static void finish_acc_ntt(vpoly out, uint32_t acc_ntt[VIPER_N])
 {
-  uint16_t acc[VIPER_N];
-
-  NTT_inv_32(acc, acc_ntt);
+  NTT_inv_32(out, acc_ntt);
   for (size_t i = 0; i < VIPER_N; i++) {
-    out[i] = (uint16_t)(acc[i] & VIPER_Q_MASK);
+    out[i] &= VIPER_Q_MASK;
   }
 }
 
@@ -130,6 +128,11 @@ static void prepare_vector_ntt(uint32_t out_ntt[VIPER_K][VIPER_N], const vpolyve
     center_poly(centered, in[i]);
     NTT_forward_32(out_ntt[i], (uint16_t *)centered);
   }
+}
+
+void poly_centered_ntt_m4(uint32_t out[VIPER_N], int16_t in[VIPER_N])
+{
+  NTT_forward_32(out, (uint16_t *)in);
 }
 
 static void matvec_acc_ntt(vpolyvec out, vpoly A[VIPER_K][VIPER_K], const vpolyvec s, int transpose)
@@ -214,12 +217,8 @@ void matTvec_dot_m4ntt(vpolyvec out, vpoly dot, vpoly A[VIPER_K][VIPER_K], const
   }
 }
 
-void matvec_stream_m4ntt(const vpolyvec s, viper_expand_matrix_centered_fn expand_A, const void *expand_ctx, viper_emit_poly_fn emit, void *emit_ctx, int transpose)
+void matvec_stream_m4ntt_prepared(const uint32_t s_ntt[VIPER_K][VIPER_N], viper_expand_matrix_centered_fn expand_A, const void *expand_ctx, viper_emit_poly_fn emit, void *emit_ctx, int transpose)
 {
-  uint32_t s_ntt[VIPER_K][VIPER_N];
-
-  prepare_vector_ntt(s_ntt, s);
-
   for (size_t i = 0; i < VIPER_K; i++) {
     uint32_t acc_ntt[VIPER_N];
 
@@ -236,11 +235,8 @@ void matvec_stream_m4ntt(const vpolyvec s, viper_expand_matrix_centered_fn expan
   }
 }
 
-void matTvec_dot_stream_m4ntt(vpoly dot, const vpolyvec s, viper_expand_matrix_centered_fn expand_A, const void *expand_ctx, viper_expand_vector_centered_fn expand_dot, const void *dot_ctx, viper_emit_poly_fn emit, void *emit_ctx)
+void matTvec_dot_stream_m4ntt_prepared(vpoly dot, const uint32_t s_ntt[VIPER_K][VIPER_N], viper_expand_matrix_centered_fn expand_A, const void *expand_ctx, viper_expand_vector_centered_fn expand_dot, const void *dot_ctx, viper_emit_poly_fn emit, void *emit_ctx)
 {
-  uint32_t s_ntt[VIPER_K][VIPER_N];
-
-  prepare_vector_ntt(s_ntt, s);
 
   for (size_t i = 0; i < VIPER_K; i++) {
     uint32_t acc_ntt[VIPER_N];
@@ -271,6 +267,25 @@ void matTvec_dot_stream_m4ntt(vpoly dot, const vpolyvec s, viper_expand_matrix_c
 
     finish_acc_ntt(dot, acc_ntt);
   }
+}
+
+void dot_dec_stream_m4ntt(vpoly out, viper_expand_vector_centered_fn expand_a, const void *a_ctx, viper_expand_vector_centered_fn expand_b, const void *b_ctx)
+{
+  uint32_t acc_ntt[VIPER_N];
+
+  for (size_t i = 0; i < VIPER_K; i++) {
+    int16_t centered[VIPER_N];
+    uint32_t a_ntt[VIPER_N];
+    uint32_t b_ntt[VIPER_N];
+
+    expand_a(centered, a_ctx, i);
+    NTT_forward_32(a_ntt, (uint16_t *)centered);
+    expand_b(centered, b_ctx, i);
+    NTT_forward_32(b_ntt, (uint16_t *)centered);
+    add_product_ntt(acc_ntt, a_ntt, b_ntt, i == 0);
+  }
+
+  finish_acc_ntt(out, acc_ntt);
 }
 
 void dot_m4shortdense(vpoly out, const vpolyvec s, const vpolyvec a)

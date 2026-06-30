@@ -27,7 +27,9 @@
 #define VIPER_USE_ASM_PK_RECONSTRUCT VIPER_USE_ASM
 #endif
 #ifndef VIPER_USE_ASM_ETA1_DECODE
-#define VIPER_USE_ASM_ETA1_DECODE VIPER_USE_ASM
+/* Viper-E8-128 uses eta=2.  Keep the legacy symbol for differential tests,
+ * but never select it from the production sampler. */
+#define VIPER_USE_ASM_ETA1_DECODE 0
 #endif
 #ifndef VIPER_USE_ASM_SECRET_PACK12
 #define VIPER_USE_ASM_SECRET_PACK12 VIPER_USE_ASM

@@ -5,11 +5,18 @@
 
 #include "viper.h"
 #include "viper_arith.h"
+#include "viper_asm.h"
 #include "viper_message_codec.h"
 #include "fips202.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+
+_Static_assert(VIPER_Q == (1u << VIPER_QLOG), "q must be a power of two");
+_Static_assert(VIPER_DITHER_U_BITS == VIPER_QLOG - VIPER_T_U,
+               "invalid U dither layout");
+_Static_assert(VIPER_DITHER_V_BITS == VIPER_QLOG - VIPER_T_V,
+               "invalid V dither layout");
 
 static uint16_t modq_int(int64_t x) { return (uint16_t)x & VIPER_Q_MASK; }
 
@@ -315,6 +322,124 @@ void viper_gen_dither(uint16_t du[VIPER_K][VIPER_N], uint16_t dv[VIPER_N], const
   else (void)read_dither_bits(dv, VIPER_N, buf, off, VIPER_QLOG - VIPER_T_V);
 }
 
+static void viper_gen_dither_bytes(
+    unsigned char dither[VIPER_DITHER_BYTES],
+    const unsigned char mu[VIPER_MU_BYTES]) {
+  shake128_label(dither, VIPER_DITHER_BYTES, "ViperDither", mu);
+}
+
+static const unsigned char *viper_dither_u_poly(
+    const unsigned char dither[VIPER_DITHER_BYTES], size_t i) {
+  return dither + i * VIPER_DITHER_U_POLYBYTES;
+}
+
+static const unsigned char *viper_dither_v_poly(
+    const unsigned char dither[VIPER_DITHER_BYTES]) {
+  return dither + VIPER_DITHER_U_BYTES;
+}
+
+static void __attribute__((unused)) viper_quantize_pack_t4_d8(
+    unsigned char out[VIPER_PACKED_V_BYTES], const uint16_t poly[VIPER_N],
+    const unsigned char dither[VIPER_DITHER_V_BYTES]) {
+  for (size_t i = 0, j = 0; i < VIPER_N; i += 2, j++) {
+    uint16_t q0 = quantize_shift(poly[i + 0], dither[i + 0], 8u, 0x0fu);
+    uint16_t q1 = quantize_shift(poly[i + 1], dither[i + 1], 8u, 0x0fu);
+    out[j] = (unsigned char)(q0 | (q1 << 4));
+  }
+}
+
+static unsigned __attribute__((unused)) viper_quantize_pack_cmp_t4_d8(
+    const unsigned char bytes[VIPER_PACKED_V_BYTES],
+    const uint16_t poly[VIPER_N],
+    const unsigned char dither[VIPER_DITHER_V_BYTES]) {
+  unsigned diff = 0;
+  for (size_t i = 0, j = 0; i < VIPER_N; i += 2, j++) {
+    uint16_t q0 = quantize_shift(poly[i + 0], dither[i + 0], 8u, 0x0fu);
+    uint16_t q1 = quantize_shift(poly[i + 1], dither[i + 1], 8u, 0x0fu);
+    diff |= (unsigned)(bytes[j] ^ (unsigned char)(q0 | (q1 << 4)));
+  }
+  return diff;
+}
+
+static void __attribute__((unused)) viper_unpack_reconstruct_t4_d8(
+    uint16_t out[VIPER_N], const unsigned char in[VIPER_PACKED_V_BYTES],
+    const unsigned char dither[VIPER_DITHER_V_BYTES]) {
+  for (size_t i = 0, j = 0; i < VIPER_N; i += 2, j++) {
+    unsigned b = in[j];
+    out[i + 0] = reconstruct_shift((uint16_t)(b & 0x0fu),
+                                   dither[i + 0], 8u);
+    out[i + 1] = reconstruct_shift((uint16_t)(b >> 4),
+                                   dither[i + 1], 8u);
+  }
+}
+
+typedef struct {
+  unsigned char *out;
+  size_t pos;
+  uint32_t acc;
+  unsigned accbits;
+} viper_bitwriter;
+
+static void bitwriter_write(viper_bitwriter *bw, uint16_t value,
+                            unsigned bits) {
+  bw->acc |= (uint32_t)value << bw->accbits;
+  bw->accbits += bits;
+  while (bw->accbits >= 8u) {
+    bw->out[bw->pos++] = (unsigned char)bw->acc;
+    bw->acc >>= 8;
+    bw->accbits -= 8u;
+  }
+}
+
+static void __attribute__((unused)) viper_quantize_pack_packed(
+    unsigned char *out, const uint16_t poly[VIPER_N],
+    const unsigned char *dither, unsigned t, unsigned dither_bits) {
+  viper_bitreader dr = {dither, 0, 0, 0};
+  viper_bitwriter qw = {out, 0, 0, 0};
+  for (size_t i = 0; i < VIPER_N; i++) {
+    uint16_t d = bitreader_read(&dr, dither_bits);
+    bitwriter_write(&qw, viper_quantize(poly[i], d, t), t);
+  }
+}
+
+static unsigned __attribute__((unused)) viper_quantize_pack_cmp_packed(
+    const unsigned char *bytes, const uint16_t poly[VIPER_N],
+    const unsigned char *dither, unsigned t, unsigned dither_bits) {
+  viper_bitreader dr = {dither, 0, 0, 0};
+  uint32_t acc = 0;
+  unsigned accbits = 0;
+  size_t pos = 0;
+  unsigned diff = 0;
+  for (size_t i = 0; i < VIPER_N; i++) {
+    uint16_t d = bitreader_read(&dr, dither_bits);
+    acc |= (uint32_t)viper_quantize(poly[i], d, t) << accbits;
+    accbits += t;
+    while (accbits >= 8u) {
+      diff |= (unsigned)(bytes[pos++] ^ (unsigned char)acc);
+      acc >>= 8;
+      accbits -= 8u;
+    }
+  }
+  return diff;
+}
+
+static void __attribute__((unused)) viper_unpack_reconstruct_packed(
+    uint16_t out[VIPER_N], const unsigned char *in,
+    const unsigned char *dither, unsigned t, unsigned dither_bits,
+    int centered) {
+  viper_bitreader qr = {in, 0, 0, 0};
+  viper_bitreader dr = {dither, 0, 0, 0};
+  for (size_t i = 0; i < VIPER_N; i++) {
+    uint16_t x = viper_reconstruct(bitreader_read(&qr, t),
+                                   bitreader_read(&dr, dither_bits), t);
+    if (centered && x >= (VIPER_Q >> 1)) {
+      out[i] = (uint16_t)((int32_t)x - VIPER_Q);
+    } else {
+      out[i] = x;
+    }
+  }
+}
+
 #define VIPER_PUBLIC_A_POLYBYTES (VIPER_N * VIPER_QLOG / 8u)
 #define VIPER_PUBLIC_DPK_POLYBYTES (VIPER_N * 2u / 8u)
 #define VIPER_PUBLIC_A_BYTES (VIPER_K * VIPER_K * VIPER_PUBLIC_A_POLYBYTES)
@@ -393,6 +518,19 @@ static void genpublic_expand_A_poly(vpoly out, const unsigned char rho[32], size
   parse_A_poly(out, buf);
 }
 
+static void genpublic_expand_A_poly_cb(vpoly out, const void *ctx,
+                                       size_t i, size_t j) {
+  genpublic_expand_A_poly(out, (const unsigned char *)ctx, i, j);
+}
+
+static void genpublic_expand_dpk_bytes(
+    unsigned char out[VIPER_PUBLIC_DPK_POLYBYTES],
+    const unsigned char rho[32], size_t i) {
+  unsigned char in[VIPER_GENPUBLIC_INPUT_BYTES];
+  genpublic_input(in, rho, VIPER_DOMAIN_DPK, i, 0);
+  shake128(out, VIPER_PUBLIC_DPK_POLYBYTES, in, sizeof(in));
+}
+
 void viper_genpublic_matvec_fused_experiment(vpolyvec out, uint16_t dpk[VIPER_K][VIPER_N], const unsigned char rho[32], const vpolyvec s, int transpose) {
   vpoly a, t;
   unsigned char in[VIPER_GENPUBLIC_INPUT_BYTES];
@@ -462,23 +600,124 @@ void viper_poly_mul_schoolbook_oracle(vpoly c, const vpoly a, const vpoly b) {
 }
 
 static void pack_secret_poly(unsigned char *out, const vpoly s) {
-  uint16_t tmp[VIPER_N];
-  for (size_t i = 0; i < VIPER_N; i++) {
-    int v = (int)(s[i] & VIPER_QMASK);
-    if (v >= VIPER_Q / 2) v -= VIPER_Q;
-    tmp[i] = (uint16_t)(v & VIPER_Q_MASK);
-  }
-  viper_pack_bits(out, tmp, VIPER_N, VIPER_QLOG);
+#if VIPER_QLOG == 12
+  viper_asm_pack_secret12(out, s);
+#else
+  viper_pack_bits(out, s, VIPER_N, VIPER_QLOG);
+#endif
 }
 
-static void unpack_secret_poly(vpoly out, const unsigned char *in) {
-  uint16_t tmp[VIPER_N];
-  viper_unpack_bits(tmp, in, VIPER_N, VIPER_QLOG);
+static void center_poly_in_place(int16_t out[VIPER_N]) {
   for (size_t i = 0; i < VIPER_N; i++) {
-    int v = (int)(tmp[i] & VIPER_Q_MASK);
-    if (v & (VIPER_Q >> 1)) v -= VIPER_Q;
-    out[i] = modq_int(v);
+    uint16_t x = ((uint16_t *)out)[i] & VIPER_Q_MASK;
+    out[i] = (int16_t)(x < (VIPER_Q >> 1) ? x : (int32_t)x - VIPER_Q);
   }
+}
+
+typedef struct {
+  const unsigned char *pk;
+  const unsigned char *rho;
+} public_poly_ctx;
+
+typedef struct {
+  unsigned char *ct;
+  const unsigned char *dither;
+} ciphertext_emit_ctx;
+
+typedef struct {
+  const unsigned char *ct;
+  const unsigned char *dither;
+  unsigned diff;
+} ciphertext_compare_ctx;
+
+static void expand_A_centered(int16_t out[VIPER_N], const void *opaque,
+                              size_t i, size_t j) {
+  genpublic_expand_A_poly((uint16_t *)out,
+                          (const unsigned char *)opaque, i, j);
+  center_poly_in_place(out);
+}
+
+static void expand_public_poly_centered(int16_t out[VIPER_N],
+                                        const void *opaque, size_t i) {
+  const public_poly_ctx *ctx = (const public_poly_ctx *)opaque;
+  unsigned char dpk[VIPER_PUBLIC_DPK_POLYBYTES];
+  genpublic_expand_dpk_bytes(dpk, ctx->rho, i);
+#if VIPER_Q == 4096 && VIPER_T_PK == 9
+  viper_asm_unpack_reconstruct_pk_centered_t9_d2(
+      out, ctx->pk + 32 + i * VIPER_PACKED_PK_POLYBYTES, dpk);
+#else
+  viper_unpack_reconstruct_packed(
+      (uint16_t *)out, ctx->pk + 32 + i * VIPER_PACKED_PK_POLYBYTES,
+      dpk, VIPER_T_PK, 2u, 1);
+#endif
+}
+
+static void emit_ciphertext_u(const uint16_t poly[VIPER_N], void *opaque,
+                              size_t i) {
+  ciphertext_emit_ctx *ctx = (ciphertext_emit_ctx *)opaque;
+#if VIPER_Q == 4096 && VIPER_T_U == 9 && VIPER_DITHER_U_BITS == 3
+  viper_asm_quantize_pack_t9_d3(
+      ctx->ct + i * VIPER_PACKED_U_POLYBYTES, poly,
+      viper_dither_u_poly(ctx->dither, i));
+#else
+  viper_quantize_pack_packed(
+      ctx->ct + i * VIPER_PACKED_U_POLYBYTES, poly,
+      viper_dither_u_poly(ctx->dither, i), VIPER_T_U,
+      VIPER_DITHER_U_BITS);
+#endif
+}
+
+static void compare_ciphertext_u(const uint16_t poly[VIPER_N], void *opaque,
+                                 size_t i) {
+  ciphertext_compare_ctx *ctx = (ciphertext_compare_ctx *)opaque;
+#if VIPER_Q == 4096 && VIPER_T_U == 9 && VIPER_DITHER_U_BITS == 3
+  ctx->diff |= viper_asm_quantize_pack_cmp_t9_d3(
+      ctx->ct + i * VIPER_PACKED_U_POLYBYTES, poly,
+      viper_dither_u_poly(ctx->dither, i));
+#else
+  ctx->diff |= viper_quantize_pack_cmp_packed(
+      ctx->ct + i * VIPER_PACKED_U_POLYBYTES, poly,
+      viper_dither_u_poly(ctx->dither, i), VIPER_T_U,
+      VIPER_DITHER_U_BITS);
+#endif
+}
+
+typedef struct {
+  const unsigned char *skpke;
+} dec_secret_ctx;
+
+typedef struct {
+  const unsigned char *ct;
+  const unsigned char *dither;
+} dec_u_ctx;
+
+static void expand_dec_secret_centered(int16_t out[VIPER_N],
+                                       const void *opaque, size_t i) {
+  const dec_secret_ctx *ctx = (const dec_secret_ctx *)opaque;
+#if VIPER_QLOG == 12
+  viper_asm_unpack12_centered(
+      out, ctx->skpke + i * VIPER_SECRET_POLYBYTES);
+#else
+  viper_unpack_bits((uint16_t *)out,
+                    ctx->skpke + i * VIPER_SECRET_POLYBYTES,
+                    VIPER_N, VIPER_QLOG);
+  center_poly_in_place(out);
+#endif
+}
+
+static void expand_dec_u_centered(int16_t out[VIPER_N],
+                                  const void *opaque, size_t i) {
+  const dec_u_ctx *ctx = (const dec_u_ctx *)opaque;
+#if VIPER_Q == 4096 && VIPER_T_U == 9 && VIPER_DITHER_U_BITS == 3
+  viper_asm_unpack_reconstruct_t9_d3_centered(
+      out, ctx->ct + i * VIPER_PACKED_U_POLYBYTES,
+      viper_dither_u_poly(ctx->dither, i));
+#else
+  viper_unpack_reconstruct_packed(
+      (uint16_t *)out, ctx->ct + i * VIPER_PACKED_U_POLYBYTES,
+      viper_dither_u_poly(ctx->dither, i), VIPER_T_U,
+      VIPER_DITHER_U_BITS, 1);
+#endif
 }
 
 static void poly_add(vpoly r, const vpoly a) { for (size_t i = 0; i < VIPER_N; i++) r[i] = (uint16_t)((r[i] + a[i]) & VIPER_Q_MASK); }
@@ -493,54 +732,69 @@ void viper_decode(unsigned char m[VIPER_MSGBYTES], const vpoly in) {
 }
 
 void viper_pke_keypair(unsigned char *pk, unsigned char *skpke, const unsigned char rho[32], const unsigned char sseed[32]) {
-  vpoly A[VIPER_K][VIPER_K];
-  uint16_t dpk[VIPER_K][VIPER_N];
   vpolyvec s, b;
   memcpy(pk, rho, 32);
-  viper_gen_public(A, dpk, rho);
   viper_sample_secret(s, sseed, VIPER_ETA_S);
-  viper_matvec(b, A, s);
+  /* Expand A one polynomial at a time and transform s only once. */
+  (void)matvec_stream_m4ntt(b, s, genpublic_expand_A_poly_cb, rho, 0);
   for (size_t i = 0; i < VIPER_K; i++) {
-    viper_quantize_pack_array(pk + 32 + i * VIPER_PACKED_PK_POLYBYTES, b[i], dpk[i], VIPER_T_PK);
+    unsigned char dpk[VIPER_PUBLIC_DPK_POLYBYTES];
+    genpublic_expand_dpk_bytes(dpk, rho, i);
+#if VIPER_Q == 4096 && VIPER_T_PK == 9
+    viper_asm_quantize_pack_pk_t9_d2(
+        pk + 32 + i * VIPER_PACKED_PK_POLYBYTES, b[i], dpk);
+#else
+    viper_quantize_pack_packed(
+        pk + 32 + i * VIPER_PACKED_PK_POLYBYTES, b[i], dpk,
+        VIPER_T_PK, 2u);
+#endif
     pack_secret_poly(skpke + i * VIPER_SECRET_POLYBYTES, s[i]);
   }
 }
 
 void viper_pke_enc(unsigned char *ct, const unsigned char *pk, const unsigned char m[VIPER_MSGBYTES], const unsigned char omega[VIPER_FALLBACK_KEY_BYTES + VIPER_MU_BYTES]) {
-  vpoly A[VIPER_K][VIPER_K], acc, t;
-  uint16_t dpk[VIPER_K][VIPER_N], du[VIPER_K][VIPER_N], dv[VIPER_N];
-  vpolyvec r, u, bhat;
+  vpoly acc, t;
+  unsigned char dither[VIPER_DITHER_BYTES];
+  vpolyvec r;
   const unsigned char *rho = pk;
   const unsigned char *mu = omega + VIPER_FALLBACK_KEY_BYTES;
-  viper_gen_public(A, dpk, rho);
-  viper_gen_dither(du, dv, mu);
+  public_poly_ctx public_ctx = {pk, rho};
+  ciphertext_emit_ctx emit_ctx = {ct, dither};
+  viper_gen_dither_bytes(dither, mu);
   viper_sample_secret(r, omega, VIPER_ETA_R);
-  for (size_t i = 0; i < VIPER_K; i++) {
-    viper_unpack_reconstruct_array(bhat[i], pk + 32 + i * VIPER_PACKED_PK_POLYBYTES, dpk[i], VIPER_T_PK);
-  }
-  viper_matTvec(u, A, r);
-  for (size_t i = 0; i < VIPER_K; i++) {
-    viper_quantize_pack_array(ct + i * VIPER_PACKED_U_POLYBYTES, u[i], du[i], VIPER_T_U);
-  }
+  matTvec_dot_stream_emit_m4ntt(
+      t, r, expand_A_centered, rho, expand_public_poly_centered,
+      &public_ctx, emit_ciphertext_u, &emit_ctx);
   viper_encode(acc, m);
-  viper_dot(t, bhat, r);
   poly_add(acc, t);
-  viper_quantize_pack_array(ct + VIPER_PACKED_U_BYTES, acc, dv, VIPER_T_V);
+#if VIPER_Q == 4096 && VIPER_T_V == 4 && VIPER_DITHER_V_BITS == 8
+  viper_quantize_pack_t4_d8(ct + VIPER_PACKED_U_BYTES, acc,
+                            viper_dither_v_poly(dither));
+#else
+  viper_quantize_pack_packed(
+      ct + VIPER_PACKED_U_BYTES, acc, viper_dither_v_poly(dither),
+      VIPER_T_V, VIPER_DITHER_V_BITS);
+#endif
   memcpy(ct + VIPER_PACKED_U_BYTES + VIPER_PACKED_V_BYTES, mu, VIPER_MU_BYTES);
 }
 
 void viper_pke_dec(unsigned char m[VIPER_MSGBYTES], const unsigned char *skpke, const unsigned char *ct) {
-  uint16_t du[VIPER_K][VIPER_N], dv[VIPER_N];
-  vpolyvec s, u;
+  unsigned char dither[VIPER_DITHER_BYTES];
   vpoly w, t;
   const unsigned char *mu = ct + VIPER_PACKED_U_BYTES + VIPER_PACKED_V_BYTES;
-  viper_gen_dither(du, dv, mu);
-  for (size_t i = 0; i < VIPER_K; i++) {
-    unpack_secret_poly(s[i], skpke + i * VIPER_SECRET_POLYBYTES);
-    viper_unpack_reconstruct_array(u[i], ct + i * VIPER_PACKED_U_POLYBYTES, du[i], VIPER_T_U);
-  }
-  viper_unpack_reconstruct_array(w, ct + VIPER_PACKED_U_BYTES, dv, VIPER_T_V);
-  viper_dot(t, s, u);
+  dec_secret_ctx secret_ctx = {skpke};
+  dec_u_ctx u_ctx = {ct, dither};
+  viper_gen_dither_bytes(dither, mu);
+  dot_dec_stream_m4ntt(t, expand_dec_secret_centered, &secret_ctx,
+                       expand_dec_u_centered, &u_ctx);
+#if VIPER_Q == 4096 && VIPER_T_V == 4 && VIPER_DITHER_V_BITS == 8
+  viper_unpack_reconstruct_t4_d8(
+      w, ct + VIPER_PACKED_U_BYTES, viper_dither_v_poly(dither));
+#else
+  viper_unpack_reconstruct_packed(
+      w, ct + VIPER_PACKED_U_BYTES, viper_dither_v_poly(dither),
+      VIPER_T_V, VIPER_DITHER_V_BITS, 0);
+#endif
   poly_sub(w, t);
   viper_decode(m, w);
 }
@@ -552,34 +806,34 @@ static unsigned diff_bytes(const unsigned char *a, const unsigned char *b, size_
 }
 
 int viper_reencrypt_check(const unsigned char *ct, const unsigned char *pk, const unsigned char m[VIPER_MSGBYTES], const unsigned char sigma[VIPER_FALLBACK_KEY_BYTES]) {
-  vpoly A[VIPER_K][VIPER_K], acc, t;
-  uint16_t dpk[VIPER_K][VIPER_N], du[VIPER_K][VIPER_N], dv[VIPER_N];
-  vpolyvec r, u, bhat;
+  vpoly acc, t;
+  unsigned char dither[VIPER_DITHER_BYTES];
+  vpolyvec r;
   unsigned char omega[VIPER_FALLBACK_KEY_BYTES + VIPER_MU_BYTES];
-  unsigned char packed_u[VIPER_PACKED_U_POLYBYTES];
-  unsigned char packed_v[VIPER_PACKED_V_BYTES];
   const unsigned char *rho = pk;
   const unsigned char *mu = ct + VIPER_PACKED_U_BYTES + VIPER_PACKED_V_BYTES;
   unsigned diff = 0;
+  public_poly_ctx public_ctx = {pk, rho};
+  ciphertext_compare_ctx compare_ctx = {ct, dither, 0};
 
   memcpy(omega, sigma, VIPER_FALLBACK_KEY_BYTES);
   memcpy(omega + VIPER_FALLBACK_KEY_BYTES, mu, VIPER_MU_BYTES);
-  viper_gen_public(A, dpk, rho);
-  viper_gen_dither(du, dv, mu);
+  viper_gen_dither_bytes(dither, mu);
   viper_sample_secret(r, omega, VIPER_ETA_R);
-  for (size_t i = 0; i < VIPER_K; i++) {
-    viper_unpack_reconstruct_array(bhat[i], pk + 32 + i * VIPER_PACKED_PK_POLYBYTES, dpk[i], VIPER_T_PK);
-  }
-  viper_matTvec(u, A, r);
-  for (size_t i = 0; i < VIPER_K; i++) {
-    viper_quantize_pack_array(packed_u, u[i], du[i], VIPER_T_U);
-    diff |= diff_bytes(packed_u, ct + i * VIPER_PACKED_U_POLYBYTES, VIPER_PACKED_U_POLYBYTES);
-  }
+  matTvec_dot_stream_emit_m4ntt(
+      t, r, expand_A_centered, rho, expand_public_poly_centered,
+      &public_ctx, compare_ciphertext_u, &compare_ctx);
+  diff |= compare_ctx.diff;
   viper_encode(acc, m);
-  viper_dot(t, bhat, r);
   poly_add(acc, t);
-  viper_quantize_pack_array(packed_v, acc, dv, VIPER_T_V);
-  diff |= diff_bytes(packed_v, ct + VIPER_PACKED_U_BYTES, VIPER_PACKED_V_BYTES);
+#if VIPER_Q == 4096 && VIPER_T_V == 4 && VIPER_DITHER_V_BITS == 8
+  diff |= viper_quantize_pack_cmp_t4_d8(
+      ct + VIPER_PACKED_U_BYTES, acc, viper_dither_v_poly(dither));
+#else
+  diff |= viper_quantize_pack_cmp_packed(
+      ct + VIPER_PACKED_U_BYTES, acc, viper_dither_v_poly(dither),
+      VIPER_T_V, VIPER_DITHER_V_BITS);
+#endif
   diff |= diff_bytes(mu, ct + VIPER_PACKED_U_BYTES + VIPER_PACKED_V_BYTES, VIPER_MU_BYTES);
   return diff == 0;
 }

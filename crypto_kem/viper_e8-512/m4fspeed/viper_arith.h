@@ -11,8 +11,25 @@ void matvec_m4ntt(vpolyvec out, vpoly A[VIPER_K][VIPER_K], const vpolyvec s);
 void matTvec_m4ntt(vpolyvec out, vpoly A[VIPER_K][VIPER_K], const vpolyvec s);
 void matTvec_dot_m4ntt(vpolyvec out, vpoly dot, vpoly A[VIPER_K][VIPER_K], const vpolyvec a, const vpolyvec s);
 typedef void (*viper_expand_A_poly_fn)(vpoly out, const void *ctx, size_t i, size_t j);
+typedef void (*viper_expand_vector_centered_fn)(int16_t out[VIPER_N],
+                                                const void *ctx, size_t i);
+typedef void (*viper_expand_matrix_centered_fn)(int16_t out[VIPER_N],
+                                                const void *ctx,
+                                                size_t i, size_t j);
+typedef void (*viper_emit_poly_fn)(const uint16_t poly[VIPER_N],
+                                   void *ctx, size_t i);
 int matvec_stream_m4ntt(vpolyvec out, const vpolyvec s, viper_expand_A_poly_fn expand_A, const void *ctx, int transpose);
 int matTvec_dot_stream_m4ntt(vpolyvec out, vpoly dot, const vpolyvec a, const vpolyvec s, viper_expand_A_poly_fn expand_A, const void *ctx);
+void dot_dec_stream_m4ntt(vpoly out,
+                          viper_expand_vector_centered_fn expand_a,
+                          const void *a_ctx,
+                          viper_expand_vector_centered_fn expand_b,
+                          const void *b_ctx);
+void matTvec_dot_stream_emit_m4ntt(
+    vpoly dot, const vpolyvec s,
+    viper_expand_matrix_centered_fn expand_A, const void *a_ctx,
+    viper_expand_vector_centered_fn expand_dot, const void *dot_ctx,
+    viper_emit_poly_fn emit, void *emit_ctx);
 void dot_m4ntt(vpoly out, const vpolyvec a, const vpolyvec b);
 
 #define viper_poly_mul poly_mul_m4ntt
@@ -40,4 +57,3 @@ static inline void viper_backend_report(FILE *out)
 }
 
 #endif
-

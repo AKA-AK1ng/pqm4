@@ -13,6 +13,7 @@ static int32_t centered_u16(uint16_t x) {
 
 static unsigned e8_modulus(void) { return 2u * (unsigned)(VIPER_Q / VIPER_E8_ALPHA); }
 
+#if VIPER_E8_RATE != 1
 static unsigned e8_count_cache[9][2][4];
 static int e8_count_ready = 0;
 
@@ -36,7 +37,9 @@ static unsigned e8_count_suffix(unsigned remaining, unsigned parity, unsigned su
   e8_init_counts();
   return e8_count_cache[remaining][parity & 1u][sum_mod4 & 3u];
 }
+#endif
 
+#if VIPER_E8_RATE != 1
 static int e8_valid_residue_vector(const unsigned d[8]) {
   unsigned parity = d[0] & 1u, sum = 0;
   for (unsigned i = 0; i < 8; i++) {
@@ -45,8 +48,25 @@ static int e8_valid_residue_vector(const unsigned d[8]) {
   }
   return (sum & 3u) == 0;
 }
+#endif
 
 static void e8_unrank(uint8_t out[8], unsigned label) {
+#if VIPER_E8_RATE == 1
+  /* For modulus 4, lexicographic E8 residues split into four groups selected
+   * by d[0].  Six payload bits select d[1..6], and d[7] is the unique value
+   * that makes the number of high residue bits even. */
+  unsigned d0 = (label >> 6) & 3u;
+  unsigned payload = label & 0x3fu;
+  unsigned parity = d0 & 1u;
+  unsigned high_parity = d0 >> 1;
+  out[0] = (uint8_t)d0;
+  for (unsigned pos = 1; pos < 7; pos++) {
+    unsigned high = (payload >> (6u - pos)) & 1u;
+    out[pos] = (uint8_t)(parity + 2u * high);
+    high_parity ^= high;
+  }
+  out[7] = (uint8_t)(parity + 2u * high_parity);
+#else
   unsigned mod = e8_modulus();
   unsigned labels = 1u << VIPER_E8_BITS_PER_BLOCK;
   unsigned rank = label & (labels - 1u);
@@ -67,9 +87,17 @@ static void e8_unrank(uint8_t out[8], unsigned label) {
       }
     }
   }
+#endif
 }
 
 static unsigned e8_rank(const unsigned d[8]) {
+#if VIPER_E8_RATE == 1
+  unsigned rank = (d[0] & 3u) << 6;
+  for (unsigned pos = 1; pos < 7; pos++) {
+    rank |= ((d[pos] >> 1) & 1u) << (6u - pos);
+  }
+  return rank;
+#else
   unsigned mod = e8_modulus();
   if (!e8_valid_residue_vector(d)) return 0;
   unsigned rank = 0, sum = 0;
@@ -86,6 +114,7 @@ static unsigned e8_rank(const unsigned d[8]) {
     sum = (sum + d[pos]) & 3u;
   }
   return rank;
+#endif
 }
 
 uint16_t viper_e8_label_to_coeff(unsigned label, unsigned coord) {
@@ -116,17 +145,12 @@ static unsigned e8_label_from_doubled(const int d[8]) {
   return e8_rank(u);
 }
 
-static int32_t div_floor_i32(int32_t a, int32_t b) {
-  int32_t q = a / b, r = a % b;
-  if (r != 0 && ((r < 0) != (b < 0))) q--;
-  return q;
-}
-
-static int32_t round_div_i32(int32_t a, int32_t b) {
-  int32_t q = div_floor_i32(a, b);
-  int32_t lo = q * b;
-  int32_t hi = lo + b;
-  return (a - lo <= hi - a) ? q : q + 1;
+static int32_t round_alpha_i32(int32_t a) {
+  _Static_assert(VIPER_E8_ALPHA == 2048,
+                 "specialized E8 rounding requires alpha=2048");
+  /* Match the original nearest-integer rule, including ties toward the
+   * smaller integer, while exposing a constant power-of-two divisor. */
+  return a >= 0 ? (a + 1023) / 2048 : (a - 1024) / 2048;
 }
 
 /* For all five active parameter sets alpha is 2048.  The nearest-grid
@@ -140,7 +164,7 @@ static uint32_t d8_candidate(int out_d[8], const int32_t c[8], int half_shift) {
   uint32_t dist = 0;
   for (unsigned i = 0; i < 8; i++) {
     int32_t target = c[i] - (half_shift ? (int32_t)(VIPER_E8_ALPHA / 2) : 0);
-    z[i] = (int)round_div_i32(target, VIPER_E8_ALPHA);
+    z[i] = (int)round_alpha_i32(target);
     sum += z[i];
   }
   if (sum & 1) {
@@ -185,13 +209,21 @@ void viper_e8_encode(vpoly out, const unsigned char m[VIPER_MSGBYTES]) {
   memset(out, 0, sizeof(vpoly));
   const unsigned mask = (1u << VIPER_E8_BITS_PER_BLOCK) - 1u;
   for (unsigned block = 0; block < VIPER_E8_ACTIVE_BLOCKS; block++) {
+    uint8_t d[8];
     unsigned label = 0;
     for (unsigned b = 0; b < VIPER_E8_BITS_PER_BLOCK; b++) {
       unsigned bit = block * VIPER_E8_BITS_PER_BLOCK + b;
       label |= (unsigned)((m[bit >> 3] >> (bit & 7)) & 1u) << b;
     }
     label &= mask;
-    for (unsigned j = 0; j < 8; j++) out[8 * block + j] = viper_e8_label_to_coeff(label, j);
+    /* Unranking is the expensive part of encoding.  The old implementation
+     * repeated it once per coordinate even though all eight coordinates use
+     * the same label. */
+    e8_unrank(d, label);
+    for (unsigned j = 0; j < 8; j++) {
+      out[8 * block + j] =
+          modq_i32((int32_t)d[j] * (int32_t)(VIPER_E8_ALPHA / 2));
+    }
   }
 }
 

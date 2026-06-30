@@ -9,6 +9,13 @@
 
 extern void __asm_poly_add_32(uint32_t *des, uint32_t *src1, uint32_t *src2);
 
+_Static_assert((uint64_t)VIPER_K * VIPER_N * VIPER_ETA_S *
+                       (VIPER_Q / 2) < (uint64_t)(Q1Q2 / 2),
+               "key-generation NTT accumulator can overflow CRT modulus");
+_Static_assert((uint64_t)VIPER_K * VIPER_N * VIPER_ETA_R *
+                       (VIPER_Q / 2) < (uint64_t)(Q1Q2 / 2),
+               "encapsulation NTT accumulator can overflow CRT modulus");
+
 static int ntt_bound_add_ok(uint64_t *bound, uint16_t max_a, uint16_t max_b)
 {
   *bound += (uint64_t)max_a * max_b * VIPER_N;
@@ -65,7 +72,6 @@ static void poly_mul_m4ntt_core(vpoly c, const vpoly a, const vpoly b)
   uint64_t bound = 0;
   uint32_t a_ntt[VIPER_N];
   uint32_t b_ntt[VIPER_N];
-  uint32_t prod_ntt[VIPER_N];
   uint16_t prod[VIPER_N];
 
   center_poly(a_center, a);
@@ -78,8 +84,8 @@ static void poly_mul_m4ntt_core(vpoly c, const vpoly a, const vpoly b)
 
   NTT_forward_32(a_ntt, (uint16_t *)a_center);
   NTT_forward_32(b_ntt, (uint16_t *)b_center);
-  NTT_mul_32(prod_ntt, a_ntt, b_ntt);
-  NTT_inv_32(prod, prod_ntt);
+  NTT_mul_32(a_ntt, a_ntt, b_ntt);
+  NTT_inv_32(prod, a_ntt);
 
   for (size_t i = 0; i < VIPER_N; i++) {
     c[i] = (uint16_t)(prod[i] & VIPER_Q_MASK);
@@ -91,26 +97,32 @@ void poly_mul_m4ntt(vpoly c, const vpoly a, const vpoly b)
   poly_mul_m4ntt_core(c, a, b);
 }
 
-static void add_product_ntt(uint32_t acc[VIPER_N], const uint32_t a_ntt[VIPER_N], const uint32_t b_ntt[VIPER_N], int first)
+static void add_product_ntt(uint32_t acc[VIPER_N], uint32_t a_ntt[VIPER_N], const uint32_t b_ntt[VIPER_N], int first)
 {
-  uint32_t prod_ntt[VIPER_N];
-
-  NTT_mul_32(prod_ntt, (uint32_t *)a_ntt, (uint32_t *)b_ntt);
   if (first) {
-    memcpy(acc, prod_ntt, sizeof(prod_ntt));
+    NTT_mul_32(acc, a_ntt, (uint32_t *)b_ntt);
   } else {
-    __asm_poly_add_32(acc, acc, prod_ntt);
+    NTT_mul_32(a_ntt, a_ntt, (uint32_t *)b_ntt);
+    __asm_poly_add_32(acc, acc, a_ntt);
   }
 }
 
 static void finish_acc_ntt(vpoly out, uint32_t acc_ntt[VIPER_N])
 {
-  uint16_t acc[VIPER_N];
-
-  NTT_inv_32(acc, acc_ntt);
+  NTT_inv_32(out, acc_ntt);
   for (size_t i = 0; i < VIPER_N; i++) {
-    out[i] = (uint16_t)(acc[i] & VIPER_Q_MASK);
+    out[i] &= VIPER_Q_MASK;
   }
+}
+
+static void finish_acc_ntt_emit(uint32_t acc_ntt[VIPER_N],
+                                viper_emit_poly_fn emit, void *ctx,
+                                size_t i)
+{
+  uint16_t acc[VIPER_N];
+  NTT_inv_32(acc, acc_ntt);
+  for (size_t j = 0; j < VIPER_N; j++) acc[j] &= VIPER_Q_MASK;
+  emit(acc, ctx, i);
 }
 
 static void matvec_fallback(vpolyvec out, vpoly A[VIPER_K][VIPER_K], const vpolyvec s, int transpose)
@@ -242,13 +254,15 @@ void matTvec_dot_m4ntt(vpolyvec out, vpoly dot, vpoly A[VIPER_K][VIPER_K], const
 int matvec_stream_m4ntt(vpolyvec out, const vpolyvec s, viper_expand_A_poly_fn expand_A, const void *ctx, int transpose)
 {
   uint32_t s_ntt[VIPER_K][VIPER_N];
-  uint16_t s_max[VIPER_K];
 
-  prepare_vector_ntt(s_ntt, s_max, s);
+  for (size_t i = 0; i < VIPER_K; i++) {
+    int16_t centered[VIPER_N];
+    center_poly(centered, s[i]);
+    NTT_forward_32(s_ntt[i], (uint16_t *)centered);
+  }
 
   for (size_t i = 0; i < VIPER_K; i++) {
     uint32_t acc_ntt[VIPER_N];
-    uint64_t bound = 0;
 
     for (size_t j = 0; j < VIPER_K; j++) {
       vpoly a_poly;
@@ -257,9 +271,6 @@ int matvec_stream_m4ntt(vpolyvec out, const vpolyvec s, viper_expand_A_poly_fn e
 
       expand_A(a_poly, ctx, transpose ? j : i, transpose ? i : j);
       center_poly(a_center, a_poly);
-      if (!ntt_bound_add_ok(&bound, max_abs_poly(a_center), s_max[j])) {
-        return 0;
-      }
       NTT_forward_32(a_ntt, (uint16_t *)a_center);
       add_product_ntt(acc_ntt, a_ntt, s_ntt[j], j == 0);
     }
@@ -320,6 +331,67 @@ int matTvec_dot_stream_m4ntt(vpolyvec out, vpoly dot, const vpolyvec a, const vp
   return 1;
 }
 
+void dot_dec_stream_m4ntt(vpoly out,
+                          viper_expand_vector_centered_fn expand_a,
+                          const void *a_ctx,
+                          viper_expand_vector_centered_fn expand_b,
+                          const void *b_ctx)
+{
+  uint32_t acc_ntt[VIPER_N];
+
+  for (size_t i = 0; i < VIPER_K; i++) {
+    int16_t centered[VIPER_N];
+    uint32_t a_ntt[VIPER_N];
+    uint32_t b_ntt[VIPER_N];
+
+    expand_a(centered, a_ctx, i);
+    NTT_forward_32(a_ntt, (uint16_t *)centered);
+    expand_b(centered, b_ctx, i);
+    NTT_forward_32(b_ntt, (uint16_t *)centered);
+    add_product_ntt(acc_ntt, a_ntt, b_ntt, i == 0);
+  }
+
+  finish_acc_ntt(out, acc_ntt);
+}
+
+void matTvec_dot_stream_emit_m4ntt(
+    vpoly dot, const vpolyvec s,
+    viper_expand_matrix_centered_fn expand_A, const void *a_ctx,
+    viper_expand_vector_centered_fn expand_dot, const void *dot_ctx,
+    viper_emit_poly_fn emit, void *emit_ctx)
+{
+  uint32_t s_ntt[VIPER_K][VIPER_N];
+
+  for (size_t i = 0; i < VIPER_K; i++) {
+    int16_t centered[VIPER_N];
+    center_poly(centered, s[i]);
+    NTT_forward_32(s_ntt[i], (uint16_t *)centered);
+  }
+  for (size_t i = 0; i < VIPER_K; i++) {
+    uint32_t acc_ntt[VIPER_N];
+    for (size_t j = 0; j < VIPER_K; j++) {
+      int16_t centered[VIPER_N];
+      uint32_t a_ntt[VIPER_N];
+      expand_A(centered, a_ctx, j, i);
+      NTT_forward_32(a_ntt, (uint16_t *)centered);
+      add_product_ntt(acc_ntt, a_ntt, s_ntt[j], j == 0);
+    }
+    finish_acc_ntt_emit(acc_ntt, emit, emit_ctx, i);
+  }
+
+  {
+    uint32_t acc_ntt[VIPER_N];
+    for (size_t i = 0; i < VIPER_K; i++) {
+      int16_t centered[VIPER_N];
+      uint32_t a_ntt[VIPER_N];
+      expand_dot(centered, dot_ctx, i);
+      NTT_forward_32(a_ntt, (uint16_t *)centered);
+      add_product_ntt(acc_ntt, a_ntt, s_ntt[i], i == 0);
+    }
+    finish_acc_ntt(dot, acc_ntt);
+  }
+}
+
 void dot_m4ntt(vpoly out, const vpolyvec a, const vpolyvec b)
 {
   uint32_t acc_ntt[VIPER_N];
@@ -344,4 +416,3 @@ void dot_m4ntt(vpoly out, const vpolyvec a, const vpolyvec b)
 
   finish_acc_ntt(out, acc_ntt);
 }
-

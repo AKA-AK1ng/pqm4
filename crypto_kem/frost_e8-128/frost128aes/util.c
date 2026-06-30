@@ -99,6 +99,30 @@ void frodo_key_decode(uint16_t *out, const uint16_t *in) {
 void frodo_pack(uint8_t *out, size_t outlen, const uint16_t *in, size_t inlen, uint8_t lsb) { // util.c
     // Pack the input uint16 vector into a char output vector, copying lsb bits from each input element.
     // If inlen * lsb / 8 > outlen, only outlen * 8 bits are copied.
+    if (lsb == 10 && outlen * 8 == inlen * 10 && (inlen & 3u) == 0) {
+        for (size_t i = 0, j = 0; i < inlen; i += 4, j += 5) {
+            uint16_t x0 = in[i + 0] & 0x03ffu;
+            uint16_t x1 = in[i + 1] & 0x03ffu;
+            uint16_t x2 = in[i + 2] & 0x03ffu;
+            uint16_t x3 = in[i + 3] & 0x03ffu;
+            out[j + 0] = (uint8_t)(x0 >> 2);
+            out[j + 1] = (uint8_t)((x0 << 6) | (x1 >> 4));
+            out[j + 2] = (uint8_t)((x1 << 4) | (x2 >> 6));
+            out[j + 3] = (uint8_t)((x2 << 2) | (x3 >> 8));
+            out[j + 4] = (uint8_t)x3;
+        }
+        return;
+    }
+    if (lsb == 5 && outlen * 8 == inlen * 5 && (inlen & 7u) == 0) {
+        for (size_t i = 0, j = 0; i < inlen; i += 8, j += 5) {
+            out[j + 0] = (uint8_t)((in[i + 0] << 3) | ((in[i + 1] & 0x1fu) >> 2));
+            out[j + 1] = (uint8_t)((in[i + 1] << 6) | ((in[i + 2] & 0x1fu) << 1) | ((in[i + 3] & 0x1fu) >> 4));
+            out[j + 2] = (uint8_t)((in[i + 3] << 4) | ((in[i + 4] & 0x1fu) >> 1));
+            out[j + 3] = (uint8_t)((in[i + 4] << 7) | ((in[i + 5] & 0x1fu) << 2) | ((in[i + 6] & 0x1fu) >> 3));
+            out[j + 4] = (uint8_t)((in[i + 6] << 5) | (in[i + 7] & 0x1fu));
+        }
+        return;
+    }
     memset(out, 0, outlen);
 
     size_t i = 0;            // whole bytes already filled in
@@ -148,6 +172,28 @@ void frodo_pack(uint8_t *out, size_t outlen, const uint16_t *in, size_t inlen, u
 void frodo_unpack(uint16_t *out, size_t outlen, const uint8_t *in, size_t inlen, uint8_t lsb) {
     // Unpack the input char vector into a uint16_t output vector, copying lsb bits
     // for each output element from input. outlen must be at least ceil(inlen * 8 / lsb).
+    if (lsb == 10 && inlen * 8 == outlen * 10 && (outlen & 3u) == 0) {
+        for (size_t i = 0, j = 0; i < outlen; i += 4, j += 5) {
+            out[i + 0] = ((uint16_t)in[j + 0] << 2) | (in[j + 1] >> 6);
+            out[i + 1] = ((uint16_t)(in[j + 1] & 0x3fu) << 4) | (in[j + 2] >> 4);
+            out[i + 2] = ((uint16_t)(in[j + 2] & 0x0fu) << 6) | (in[j + 3] >> 2);
+            out[i + 3] = ((uint16_t)(in[j + 3] & 0x03u) << 8) | in[j + 4];
+        }
+        return;
+    }
+    if (lsb == 5 && inlen * 8 == outlen * 5 && (outlen & 7u) == 0) {
+        for (size_t i = 0, j = 0; i < outlen; i += 8, j += 5) {
+            out[i + 0] = in[j + 0] >> 3;
+            out[i + 1] = ((uint16_t)(in[j + 0] & 0x07u) << 2) | (in[j + 1] >> 6);
+            out[i + 2] = (in[j + 1] >> 1) & 0x1fu;
+            out[i + 3] = ((uint16_t)(in[j + 1] & 0x01u) << 4) | (in[j + 2] >> 4);
+            out[i + 4] = ((uint16_t)(in[j + 2] & 0x0fu) << 1) | (in[j + 3] >> 7);
+            out[i + 5] = (in[j + 3] >> 2) & 0x1fu;
+            out[i + 6] = ((uint16_t)(in[j + 3] & 0x03u) << 3) | (in[j + 4] >> 5);
+            out[i + 7] = in[j + 4] & 0x1fu;
+        }
+        return;
+    }
     memset(out, 0, outlen * sizeof(uint16_t));
 
     size_t i = 0;            // whole uint16_t already filled in

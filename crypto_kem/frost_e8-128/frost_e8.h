@@ -29,6 +29,12 @@ extern volatile unsigned long frost_e8_decode_call_count;
 #if PARAMS_EXTRACTED_BITS < 2
 #error FROST_USE_E8_CODE requires PARAMS_EXTRACTED_BITS >= 2.
 #endif
+#if PARAMS_EXTRACTED_BITS > 4
+#error The optimized Frost E8 codec supports at most four extracted bits.
+#endif
+#if PARAMS_LOGQ > 16
+#error The Cortex-M4 32-bit E8 decoder is proven only for q <= 2^16.
+#endif
 
 static const int16_t E8_BASIS_2[8][8] = {
     { 4, -2,  0,  0,  0,  0,  0,  1 },
@@ -41,25 +47,25 @@ static const int16_t E8_BASIS_2[8][8] = {
     { 0,  0,  0,  0,  0,  0,  0,  1 }
 };
 
-static uint64_t frost_e8_ct_mask_u64_lt(uint64_t a, uint64_t b)
+static uint32_t frost_e8_ct_mask_u32_lt(uint32_t a, uint32_t b)
 {
-    return (uint64_t)0 - ((a - b) >> 63);
+    return (uint32_t)0 - ((a - b) >> 31);
 }
 
-static int64_t frost_e8_ct_select_i64(int64_t a, int64_t b, uint64_t mask)
+static int32_t frost_e8_ct_select_i32(int32_t a, int32_t b, uint32_t mask)
 {
-    return (int64_t)(((uint64_t)a & ~mask) | ((uint64_t)b & mask));
+    return (int32_t)(((uint32_t)a & ~mask) | ((uint32_t)b & mask));
 }
 
-static uint32_t frost_e8_ct_select_u32(uint32_t a, uint32_t b, uint64_t mask)
+static uint32_t frost_e8_ct_select_u32(uint32_t a, uint32_t b, uint32_t mask)
 {
-    return (uint32_t)(((uint64_t)a & ~mask) | ((uint64_t)b & mask));
+    return (a & ~mask) | (b & mask);
 }
 
-static uint64_t frost_e8_abs_i64(int64_t x)
+static uint32_t frost_e8_abs_i32(int32_t x)
 {
-    int64_t mask = x >> 63;
-    return (uint64_t)((x ^ mask) - mask);
+    int32_t mask = x >> 31;
+    return (uint32_t)((x ^ mask) - mask);
 }
 
 static uint32_t frost_e8_read_bits(const uint8_t *in, size_t *bitpos, unsigned bits)
@@ -124,14 +130,14 @@ static void frost_e8_delabel_block(uint32_t z[8], const uint32_t x[8])
     z[7] &= ((2u << PARAMS_EXTRACTED_BITS) - 1u);
 }
 
-static void frost_e8_d8_nn_decode_scaled(int64_t cand[8], int64_t y[8])
+static void frost_e8_d8_nn_decode_scaled(int32_t cand[8], const int32_t y[8])
 {
-    const int64_t alpha = (int64_t)1 << (PARAMS_LOGQ - PARAMS_EXTRACTED_BITS);
-    const int64_t alpha_half = alpha >> 1;
-    int64_t u[8];
-    int64_t residual[8];
+    const int32_t alpha = (int32_t)1 << (PARAMS_LOGQ - PARAMS_EXTRACTED_BITS);
+    const int32_t alpha_half = alpha >> 1;
+    int32_t u[8];
+    int32_t residual[8];
     uint32_t parity = 0;
-    uint64_t best_abs = 0;
+    uint32_t best_abs = 0;
     uint32_t best_idx = 0;
 
     for (size_t i = 0; i < 8; i++) {
@@ -139,19 +145,19 @@ static void frost_e8_d8_nn_decode_scaled(int64_t cand[8], int64_t y[8])
         residual[i] = y[i] - alpha * u[i];
         parity ^= (uint32_t)u[i] & 1u;
 
-        uint64_t a = frost_e8_abs_i64(residual[i]);
-        uint64_t update = frost_e8_ct_mask_u64_lt(best_abs, a);
+        uint32_t a = frost_e8_abs_i32(residual[i]);
+        uint32_t update = frost_e8_ct_mask_u32_lt(best_abs, a);
         best_abs = ((best_abs & ~update) | (a & update));
         best_idx = frost_e8_ct_select_u32(best_idx, (uint32_t)i, update);
     }
 
-    uint64_t odd_mask = (uint64_t)0 - (uint64_t)(parity & 1u);
+    uint32_t odd_mask = (uint32_t)0 - (parity & 1u);
     for (size_t i = 0; i < 8; i++) {
-        uint64_t eq = (uint64_t)0 - (uint64_t)((uint32_t)i == best_idx);
-        uint64_t update = odd_mask & eq;
-        int64_t sign = residual[i] >> 63;
-        int64_t delta = 1 + (sign & -2);
-        u[i] = frost_e8_ct_select_i64(u[i], u[i] + delta, update);
+        uint32_t eq = (uint32_t)0 - (uint32_t)((uint32_t)i == best_idx);
+        uint32_t update = odd_mask & eq;
+        int32_t sign = residual[i] >> 31;
+        int32_t delta = 1 + (sign & -2);
+        u[i] = frost_e8_ct_select_i32(u[i], u[i] + delta, update);
         cand[i] = alpha * u[i];
     }
 }
@@ -159,9 +165,9 @@ static void frost_e8_d8_nn_decode_scaled(int64_t cand[8], int64_t y[8])
 static void frost_e8_nn_decode(uint32_t out[8], const uint32_t in[8])
 {
     const uint32_t qmask = ((uint32_t)1u << PARAMS_LOGQ) - 1u;
-    const int64_t alpha_half = (int64_t)1 << (PARAMS_LOGQ - PARAMS_EXTRACTED_BITS - 1);
-    int64_t y0[8], y1[8], cand0[8], cand1[8];
-    uint64_t dist0 = 0, dist1 = 0;
+    const int32_t alpha_half = (int32_t)1 << (PARAMS_LOGQ - PARAMS_EXTRACTED_BITS - 1);
+    int32_t y0[8], y1[8], cand0[8], cand1[8];
+    uint32_t dist0 = 0, dist1 = 0;
 
     for (size_t i = 0; i < 8; i++) {
         y0[i] = (int64_t)(in[i] & qmask);
@@ -173,20 +179,20 @@ static void frost_e8_nn_decode(uint32_t out[8], const uint32_t in[8])
 
     for (size_t i = 0; i < 8; i++) {
         cand1[i] += alpha_half;
-        int64_t r0 = y0[i] - cand0[i];
-        int64_t r1 = y0[i] - cand1[i];
-        dist0 += (uint64_t)(r0 * r0);
-        dist1 += (uint64_t)(r1 * r1);
+        int32_t r0 = y0[i] - cand0[i];
+        int32_t r1 = y0[i] - cand1[i];
+        dist0 += (uint32_t)(r0 * r0);
+        dist1 += (uint32_t)(r1 * r1);
     }
 
-    uint64_t use_cand1 = frost_e8_ct_mask_u64_lt(dist1, dist0);
+    uint32_t use_cand1 = frost_e8_ct_mask_u32_lt(dist1, dist0);
     for (size_t i = 0; i < 8; i++) {
-        int64_t selected = frost_e8_ct_select_i64(cand0[i], cand1[i], use_cand1);
+        int32_t selected = frost_e8_ct_select_i32(cand0[i], cand1[i], use_cand1);
         out[i] = (uint32_t)selected & qmask;
     }
 }
 
-static void frost_e8_encode_u32(uint32_t *out, const uint8_t *in)
+static FROST_E8_UNUSED void frost_e8_encode_u32(uint32_t *out, const uint8_t *in)
 {
 #ifdef FROST_CODEC_TRACE
     frost_e8_encode_call_count++;
@@ -205,7 +211,7 @@ static void frost_e8_encode_u32(uint32_t *out, const uint8_t *in)
     }
 }
 
-static void frost_e8_decode_u32(uint8_t *out, const uint32_t *in)
+static FROST_E8_UNUSED void frost_e8_decode_u32(uint8_t *out, const uint32_t *in)
 {
 #ifdef FROST_CODEC_TRACE
     frost_e8_decode_call_count++;
@@ -227,17 +233,74 @@ static void frost_e8_decode_u32(uint8_t *out, const uint32_t *in)
 
 static FROST_E8_UNUSED void frost_e8_encode_u16(uint16_t *out, const uint8_t *in)
 {
-    uint32_t tmp[PARAMS_NBAR_R * PARAMS_NBAR_S];
-    frost_e8_encode_u32(tmp, in);
-    for (size_t i = 0; i < PARAMS_NBAR_R * PARAMS_NBAR_S; i++) out[i] = (uint16_t)tmp[i];
+#ifdef FROST_CODEC_TRACE
+    frost_e8_encode_call_count++;
+#endif
+    const uint32_t qmask = ((uint32_t)1u << PARAMS_LOGQ) - 1u;
+    const uint32_t scale = (uint32_t)1u << (PARAMS_LOGQ - PARAMS_EXTRACTED_BITS - 1);
+
+    const unsigned p = PARAMS_EXTRACTED_BITS;
+    const uint32_t p_mask = ((uint32_t)1u << p) - 1u;
+    const uint32_t z0_mask = ((uint32_t)1u << (p - 1)) - 1u;
+    const uint32_t z7_mask = ((uint32_t)1u << (p + 1)) - 1u;
+    const size_t blocks = (PARAMS_NBAR_R * PARAMS_NBAR_S) / 8;
+
+    for (size_t block = 0; block < blocks; block++) {
+        uint32_t label = 0;
+        for (unsigned byte = 0; byte < p; byte++) {
+            label |= (uint32_t)in[p * block + byte] << (8 * byte);
+        }
+        int32_t z0 = (int32_t)(label & z0_mask);
+        int32_t z1 = (int32_t)((label >> (p - 1)) & p_mask);
+        int32_t z2 = (int32_t)((label >> (2 * p - 1)) & p_mask);
+        int32_t z3 = (int32_t)((label >> (3 * p - 1)) & p_mask);
+        int32_t z4 = (int32_t)((label >> (4 * p - 1)) & p_mask);
+        int32_t z5 = (int32_t)((label >> (5 * p - 1)) & p_mask);
+        int32_t z6 = (int32_t)((label >> (6 * p - 1)) & p_mask);
+        int32_t z7 = (int32_t)((label >> (7 * p - 1)) & z7_mask);
+        uint16_t *x = &out[8 * block];
+
+        x[0] = (uint16_t)(((4 * z0 - 2 * z1 + z7) * (int32_t)scale) & (int32_t)qmask);
+        x[1] = (uint16_t)(((2 * z1 - 2 * z2 + z7) * (int32_t)scale) & (int32_t)qmask);
+        x[2] = (uint16_t)(((2 * z2 - 2 * z3 + z7) * (int32_t)scale) & (int32_t)qmask);
+        x[3] = (uint16_t)(((2 * z3 - 2 * z4 + z7) * (int32_t)scale) & (int32_t)qmask);
+        x[4] = (uint16_t)(((2 * z4 - 2 * z5 + z7) * (int32_t)scale) & (int32_t)qmask);
+        x[5] = (uint16_t)(((2 * z5 - 2 * z6 + z7) * (int32_t)scale) & (int32_t)qmask);
+        x[6] = (uint16_t)(((2 * z6 + z7) * (int32_t)scale) & (int32_t)qmask);
+        x[7] = (uint16_t)((z7 * (int32_t)scale) & (int32_t)qmask);
+    }
 }
 
 static FROST_E8_UNUSED void frost_e8_decode_u16(uint8_t *out, const uint16_t *in)
 {
-    uint32_t tmp[PARAMS_NBAR_R * PARAMS_NBAR_S];
-    for (size_t i = 0; i < PARAMS_NBAR_R * PARAMS_NBAR_S; i++) tmp[i] = in[i];
-    frost_e8_decode_u32(out, tmp);
+#ifdef FROST_CODEC_TRACE
+    frost_e8_decode_call_count++;
+#endif
+    const unsigned p = PARAMS_EXTRACTED_BITS;
+    const uint32_t p_mask = ((uint32_t)1u << p) - 1u;
+    const uint32_t z0_mask = ((uint32_t)1u << (p - 1)) - 1u;
+    const uint32_t z7_mask = ((uint32_t)1u << (p + 1)) - 1u;
+    const size_t blocks = (PARAMS_NBAR_R * PARAMS_NBAR_S) / 8;
+
+    for (size_t block = 0; block < blocks; block++) {
+        uint32_t encoded[8], decoded[8], z[8];
+        uint32_t label;
+
+        for (size_t i = 0; i < 8; i++) encoded[i] = in[8 * block + i];
+        frost_e8_nn_decode(decoded, encoded);
+        frost_e8_delabel_block(z, decoded);
+        label = (z[0] & z0_mask) |
+                ((z[1] & p_mask) << (p - 1)) |
+                ((z[2] & p_mask) << (2 * p - 1)) |
+                ((z[3] & p_mask) << (3 * p - 1)) |
+                ((z[4] & p_mask) << (4 * p - 1)) |
+                ((z[5] & p_mask) << (5 * p - 1)) |
+                ((z[6] & p_mask) << (6 * p - 1)) |
+                ((z[7] & z7_mask) << (7 * p - 1));
+        for (unsigned byte = 0; byte < p; byte++) {
+            out[p * block + byte] = (uint8_t)(label >> (8 * byte));
+        }
+    }
 }
 
 #endif
-

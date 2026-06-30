@@ -1,0 +1,42 @@
+#ifndef PARAMS_M4_H
+#define PARAMS_M4_H
+
+#define NIKE_LEVEL 128
+#define PARAM_N 512
+#define PARAM_K 2
+#define PARAM_Q 8192
+#define LOG2Q 13
+#define PARAM_T_PK 9
+#define PARAM_T_U 9
+#define PARAM_T_V 6
+
+#define PARAM_H_PK (LOG2Q - PARAM_T_PK)
+#define PARAM_H_U  (LOG2Q - PARAM_T_U)
+#define PARAM_H_V  (LOG2Q - PARAM_T_V)
+#define PARAM_P_PK     (1u << PARAM_T_PK)
+#define PARAM_P_U      (1u << PARAM_T_U)
+#define PARAM_P_V      (1u << PARAM_T_V)
+#define PARAM_DELTA_PK (1u << PARAM_H_PK)
+#define PARAM_DELTA_U  (1u << PARAM_H_U)
+#define PARAM_DELTA_V  (1u << PARAM_H_V)
+
+#define POLY_BYTES        (2 * PARAM_N)
+#define NIKE_SEEDBYTES    32
+#define NIKE_RECGROUPS    (PARAM_N / 4)
+#define NIKE_RECCOEFFS     PARAM_N
+#define NIKE_RECBYTES      NIKE_RECGROUPS
+#define NIKE_KEYBYTES     (PARAM_N / 32)
+#define NIKE_SSBYTES      32
+
+#define NIKE_PACKEDPOLYBYTES(bits) (((PARAM_N * (bits)) + 7) / 8)
+#define NIKE_PKPOLYBYTES NIKE_PACKEDPOLYBYTES(PARAM_T_PK)
+#define NIKE_UPOLYBYTES  NIKE_PACKEDPOLYBYTES(PARAM_T_U)
+
+#define NIKE_SENDABYTES   (NIKE_PKPOLYBYTES + NIKE_SEEDBYTES)
+#define NIKE_SENDBBYTES   (NIKE_SEEDBYTES + NIKE_UPOLYBYTES + NIKE_RECBYTES)
+#define NIKE_KDF_DOMAINBYTES 16
+#define NIKE_KDF_INPUTBYTES   (NIKE_KDF_DOMAINBYTES + NIKE_KEYBYTES \
+                               + NIKE_SENDABYTES + NIKE_SENDBBYTES)
+
+
+#endif

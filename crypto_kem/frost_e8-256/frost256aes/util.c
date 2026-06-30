@@ -99,6 +99,23 @@ void frodo_key_decode(uint16_t *out, const uint16_t *in) {
 void frodo_pack(uint8_t *out, size_t outlen, const uint16_t *in, size_t inlen, uint8_t lsb) { // util.c
     // Pack the input uint16 vector into a char output vector, copying lsb bits from each input element.
     // If inlen * lsb / 8 > outlen, only outlen * 8 bits are copied.
+    if (lsb > 0 && lsb <= 14 && outlen * 8 == inlen * lsb) {
+        const uint32_t mask = ((uint32_t)1u << lsb) - 1u;
+        uint32_t acc = 0;
+        unsigned accbits = 0;
+        size_t outpos = 0;
+
+        for (size_t i = 0; i < inlen; i++) {
+            acc = (acc << lsb) | ((uint32_t)in[i] & mask);
+            accbits += lsb;
+            while (accbits >= 8) {
+                accbits -= 8;
+                out[outpos++] = (uint8_t)(acc >> accbits);
+                acc &= accbits ? (((uint32_t)1u << accbits) - 1u) : 0u;
+            }
+        }
+        return;
+    }
     memset(out, 0, outlen);
 
     size_t i = 0;            // whole bytes already filled in
@@ -148,6 +165,23 @@ void frodo_pack(uint8_t *out, size_t outlen, const uint16_t *in, size_t inlen, u
 void frodo_unpack(uint16_t *out, size_t outlen, const uint8_t *in, size_t inlen, uint8_t lsb) {
     // Unpack the input char vector into a uint16_t output vector, copying lsb bits
     // for each output element from input. outlen must be at least ceil(inlen * 8 / lsb).
+    if (lsb > 0 && lsb <= 14 && inlen * 8 == outlen * lsb) {
+        const uint32_t mask = ((uint32_t)1u << lsb) - 1u;
+        uint32_t acc = 0;
+        unsigned accbits = 0;
+        size_t inpos = 0;
+
+        for (size_t i = 0; i < outlen; i++) {
+            while (accbits < lsb) {
+                acc = (acc << 8) | in[inpos++];
+                accbits += 8;
+            }
+            accbits -= lsb;
+            out[i] = (uint16_t)((acc >> accbits) & mask);
+            acc &= accbits ? (((uint32_t)1u << accbits) - 1u) : 0u;
+        }
+        return;
+    }
     memset(out, 0, outlen * sizeof(uint16_t));
 
     size_t i = 0;            // whole uint16_t already filled in

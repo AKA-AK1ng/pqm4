@@ -27,7 +27,7 @@ void indcpa_keypair_derand(unsigned char *pk,
                     unsigned char *sk, 
                     const unsigned char *coins){
     polyvec skpv, skpv_prime;
-    poly pkp;
+    poly pkp;   // t=As+e
     unsigned char buf[2 * KYBER_SYMBYTES];
     unsigned char *publicseed = buf;
     unsigned char *noiseseed = buf + KYBER_SYMBYTES;
@@ -36,15 +36,15 @@ void indcpa_keypair_derand(unsigned char *pk,
 
     memcpy(buf, coins, KYBER_SYMBYTES);
     buf[KYBER_SYMBYTES] = KYBER_K;
-    hash_g(buf, buf, KYBER_SYMBYTES + 1);
+    hash_g(buf, buf, KYBER_SYMBYTES + 1);   // symmetric.c
 
-    for (i = 0; i < KYBER_K; i++)
-        poly_getnoise_eta1(skpv.vec + i, noiseseed, nonce++);
+    for (i = 0; i < KYBER_K; i++)   // s[i]
+        poly_getnoise_eta1(skpv.vec + i, noiseseed, nonce++);   // poly.c cbd.c
 
-    polyvec_ntt(&skpv);
+    polyvec_ntt(&skpv); // ntt
     
     // i = 0
-    matacc_cache32(&pkp, &skpv, &skpv_prime, 0, publicseed, 0);
+    matacc_cache32(&pkp, &skpv, &skpv_prime, 0, publicseed, 0); // matacc.c 首行计算 + 预处理缓存
     poly_invntt(&pkp);
 
     poly_addnoise_eta1(&pkp, noiseseed, nonce++);
@@ -96,7 +96,7 @@ void indcpa_enc(unsigned char *c,
     polyvec_ntt(&sp);
 
     // i = 0
-    matacc_cache32(&bp, &sp, &sp_prime, 0, seed, 1);
+    matacc_cache32(&bp, &sp, &sp_prime, 0, seed, 1);    // 首行计算 + 预处理缓存
     poly_invntt(&bp);
     poly_addnoise_eta2(&bp, coins, nonce++);
     poly_reduce(&bp);
